@@ -105,3 +105,16 @@ def test_mcp_accepts_the_public_host_name(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.delenv("LECTERN_HOSTS")
     with TestClient(create_app(Store(), FakeProvider()), base_url="https://lectern.example.org") as client:
         assert client.post("/mcp/", json=init, headers=headers).status_code == 421
+
+
+def test_redaction_keeps_uvicorn_access_lines_working() -> None:
+    from uvicorn.logging import AccessFormatter
+
+    flt = RedactSecrets({"LECTERN_API_KEY": "test-sentinel-key-not-real"})
+    args = ("10.0.0.1:5", "GET", "/decks?k=test-sentinel-key-not-real", "1.1", 200)
+    record = logging.LogRecord(
+        "uvicorn.access", logging.INFO, __file__, 1, '%s - "%s %s HTTP/%s" %d', args, None
+    )
+    assert flt.filter(record)
+    line = AccessFormatter("%(message)s", use_colors=False).format(record)
+    assert line == '10.0.0.1:5 - "GET /decks?k=[redacted] HTTP/1.1" 200'

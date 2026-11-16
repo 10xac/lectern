@@ -136,12 +136,23 @@ class RedactSecrets(logging.Filter):
         self.env = os.environ if env is None else env
 
     def filter(self, record: logging.LogRecord) -> bool:
+        """Redact inside the message and each argument, keeping their shape: formatters such as
+        uvicorn's access formatter unpack ``record.args`` and break if it is replaced."""
         secrets = [v for k, v in self.env.items() if SECRET_NAME.search(k) and len(v) >= 6]
-        if secrets:
-            text = record.getMessage()
+
+        def clean(value: Any) -> Any:
+            if not isinstance(value, str):
+                return value
             for secret in secrets:
-                text = text.replace(secret, "[redacted]")
-            record.msg, record.args = text, None
+                value = value.replace(secret, "[redacted]")
+            return value
+
+        if secrets:
+            record.msg = clean(record.msg)
+            if isinstance(record.args, tuple):
+                record.args = tuple(clean(a) for a in record.args)
+            elif isinstance(record.args, dict):
+                record.args = {k: clean(v) for k, v in record.args.items()}
         return True
 
 
