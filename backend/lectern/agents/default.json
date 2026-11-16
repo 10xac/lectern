@@ -1,0 +1,13 @@
+{
+  "id": "slide-agent",
+  "persona": "You are the agent for one slide of a presentation. Explain this slide the way its presenter would, using the slide, its presenter notes and the author's data.",
+  "behaviour": {
+    "rules": ["Answer only from evidence; cite every sentence.", "Say so when unsure."],
+    "decision": {"answer_at": 0.5, "qualify_band": 0.15, "ask_when": "ambiguous"}
+  },
+  "context": ["slide", "notes", "neighbours", "deck_outline", "dna", "attachments"],
+  "model": {"provider": "fake", "model": null, "api_key_env": null, "base_url": null},
+  "tools": ["deck_search", "dna_search", "memory_search"],
+  "triage": {"provider": "auto"},
+  "budget": {"max_researchers": 4, "max_seconds": 60, "max_tool_calls": 12}
+}

@@ -1,0 +1,121 @@
+{
+ "edges": [
+  {
+   "from": "deck",
+   "to": "slide:1",
+   "type": "contains"
+  },
+  {
+   "from": "deck",
+   "to": "slide:2",
+   "type": "contains"
+  },
+  {
+   "from": "comp:1:chart:img-1",
+   "to": "slide:1",
+   "type": "contains"
+  },
+  {
+   "degree": "high",
+   "from": "inf:C",
+   "to": "comp:1:chart:img-1",
+   "type": "shapes",
+   "weight": 1.0
+  },
+  {
+   "from": "inf:C",
+   "to": "url:https://example.org/memo",
+   "type": "cites"
+  },
+  {
+   "degree": "low",
+   "from": "inf:F",
+   "to": "slide:1",
+   "type": "shapes",
+   "weight": 0.3
+  },
+  {
+   "degree": "low",
+   "from": "inf:F",
+   "to": "slide:2",
+   "type": "shapes",
+   "weight": 0.3
+  },
+  {
+   "from": "inf:F",
+   "to": "inf:C",
+   "type": "derived"
+  },
+  {
+   "degree": "general",
+   "from": "inf:G",
+   "to": "deck",
+   "type": "shapes",
+   "weight": 0.2
+  }
+ ],
+ "nodes": [
+  {
+   "id": "deck",
+   "label": "demo",
+   "layer": 0,
+   "type": "deck"
+  },
+  {
+   "author": "Claude",
+   "degree": "high",
+   "id": "inf:C",
+   "kind": "reasoning",
+   "label": "Q3 board memo",
+   "layer": 1,
+   "stale": false,
+   "type": "influence"
+  },
+  {
+   "id": "url:https://example.org/memo",
+   "label": "memo",
+   "layer": 1,
+   "type": "url",
+   "url": "https://example.org/memo"
+  },
+  {
+   "author": "anonymous",
+   "degree": "low",
+   "id": "inf:F",
+   "kind": "reasoning",
+   "label": "Follow-up",
+   "layer": 1,
+   "stale": false,
+   "type": "influence"
+  },
+  {
+   "author": "anonymous",
+   "degree": "general",
+   "id": "inf:G",
+   "kind": "reasoning",
+   "label": "Plain-English style",
+   "layer": 1,
+   "stale": false,
+   "type": "influence"
+  },
+  {
+   "component": "chart",
+   "id": "comp:1:chart:img-1",
+   "label": "revenue chart",
+   "layer": 2,
+   "type": "component"
+  },
+  {
+   "id": "slide:1",
+   "label": "1. Revenue",
+   "layer": 3,
+   "type": "slide"
+  },
+  {
+   "id": "slide:2",
+   "label": "2. Next",
+   "layer": 3,
+   "type": "slide"
+  }
+ ]
+}

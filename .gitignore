@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+# Node
+frontend/node_modules/
+frontend/dist/
+# Local data
+*.db
+*.db-journal
+.env
+# Local session handoff (not part of the public repo)
+next_session.txt
+lectern-blobs/
+demo.db
+demo-blobs/

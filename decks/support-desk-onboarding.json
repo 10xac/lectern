@@ -1,0 +1,579 @@
+{
+ "presentationId": "local-export",
+ "title": "Support desk onboarding",
+ "slides": [
+  {
+   "objectId": "slide1",
+   "pageElements": [
+    {
+     "objectId": "s1_title",
+     "shape": {
+      "text": {
+       "textElements": [
+        {
+         "paragraphMarker": {}
+        },
+        {
+         "textRun": {
+          "content": "Support desk onboarding"
+         }
+        }
+       ]
+      },
+      "placeholder": {
+       "type": "CENTERED_TITLE"
+      }
+     }
+    },
+    {
+     "objectId": "s1_body",
+     "shape": {
+      "text": {
+       "textElements": [
+        {
+         "paragraphMarker": {}
+        },
+        {
+         "textRun": {
+          "content": "Your first week answering customer tickets.\n"
+         }
+        }
+       ]
+      },
+      "placeholder": {
+       "type": "BODY"
+      }
+     }
+    }
+   ],
+   "slideProperties": {
+    "layoutObjectId": "layout1",
+    "notesPage": {
+     "objectId": "s1_notes_page",
+     "notesProperties": {
+      "speakerNotesObjectId": "s1_notes"
+     },
+     "pageElements": [
+      {
+       "objectId": "s1_thumb",
+       "image": {}
+      },
+      {
+       "objectId": "s1_notes",
+       "shape": {
+        "text": {
+         "textElements": [
+          {
+           "paragraphMarker": {}
+          },
+          {
+           "textRun": {
+            "content": "Introduce yourself and the three shifts."
+           }
+          }
+         ]
+        },
+        "placeholder": {
+         "type": "BODY"
+        }
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "objectId": "slide2",
+   "pageElements": [
+    {
+     "objectId": "s2_title",
+     "shape": {
+      "text": {
+       "textElements": [
+        {
+         "paragraphMarker": {}
+        },
+        {
+         "textRun": {
+          "content": "How a ticket flows"
+         }
+        }
+       ]
+      },
+      "placeholder": {
+       "type": "TITLE"
+      }
+     }
+    },
+    {
+     "objectId": "s2_body",
+     "shape": {
+      "text": {
+       "textElements": [
+        {
+         "paragraphMarker": {}
+        },
+        {
+         "textRun": {
+          "content": "New, triaged, waiting on customer, solved.\nEvery ticket has one owner.\n"
+         }
+        }
+       ]
+      },
+      "placeholder": {
+       "type": "BODY"
+      }
+     }
+    }
+   ],
+   "slideProperties": {
+    "layoutObjectId": "layout1",
+    "notesPage": {
+     "objectId": "s2_notes_page",
+     "notesProperties": {
+      "speakerNotesObjectId": "s2_notes"
+     },
+     "pageElements": [
+      {
+       "objectId": "s2_thumb",
+       "image": {}
+      },
+      {
+       "objectId": "s2_notes",
+       "shape": {
+        "text": {
+         "textElements": [
+          {
+           "paragraphMarker": {}
+          },
+          {
+           "textRun": {
+            "content": "Triage happens within two hours during the day shift. Nobody works a ticket they do not own."
+           }
+          }
+         ]
+        },
+        "placeholder": {
+         "type": "BODY"
+        }
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "objectId": "slide3",
+   "pageElements": [
+    {
+     "objectId": "s3_title",
+     "shape": {
+      "text": {
+       "textElements": [
+        {
+         "paragraphMarker": {}
+        },
+        {
+         "textRun": {
+          "content": "Response targets"
+         }
+        }
+       ]
+      },
+      "placeholder": {
+       "type": "TITLE"
+      }
+     }
+    },
+    {
+     "objectId": "s3_body",
+     "shape": {
+      "text": {
+       "textElements": [
+        {
+         "paragraphMarker": {}
+        },
+        {
+         "textRun": {
+          "content": "Targets by priority.\n"
+         }
+        }
+       ]
+      },
+      "placeholder": {
+       "type": "BODY"
+      }
+     }
+    },
+    {
+     "objectId": "s3_table",
+     "table": {
+      "rows": 4,
+      "columns": 3,
+      "tableRows": [
+       {
+        "tableCells": [
+         {
+          "text": {
+           "textElements": [
+            {
+             "paragraphMarker": {}
+            },
+            {
+             "textRun": {
+              "content": "Priority"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "text": {
+           "textElements": [
+            {
+             "paragraphMarker": {}
+            },
+            {
+             "textRun": {
+              "content": "First reply"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "text": {
+           "textElements": [
+            {
+             "paragraphMarker": {}
+            },
+            {
+             "textRun": {
+              "content": "Resolution"
+             }
+            }
+           ]
+          }
+         }
+        ]
+       },
+       {
+        "tableCells": [
+         {
+          "text": {
+           "textElements": [
+            {
+             "paragraphMarker": {}
+            },
+            {
+             "textRun": {
+              "content": "Urgent"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "text": {
+           "textElements": [
+            {
+             "paragraphMarker": {}
+            },
+            {
+             "textRun": {
+              "content": "1 hour"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "text": {
+           "textElements": [
+            {
+             "paragraphMarker": {}
+            },
+            {
+             "textRun": {
+              "content": "1 day"
+             }
+            }
+           ]
+          }
+         }
+        ]
+       },
+       {
+        "tableCells": [
+         {
+          "text": {
+           "textElements": [
+            {
+             "paragraphMarker": {}
+            },
+            {
+             "textRun": {
+              "content": "Normal"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "text": {
+           "textElements": [
+            {
+             "paragraphMarker": {}
+            },
+            {
+             "textRun": {
+              "content": "8 hours"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "text": {
+           "textElements": [
+            {
+             "paragraphMarker": {}
+            },
+            {
+             "textRun": {
+              "content": "5 days"
+             }
+            }
+           ]
+          }
+         }
+        ]
+       },
+       {
+        "tableCells": [
+         {
+          "text": {
+           "textElements": [
+            {
+             "paragraphMarker": {}
+            },
+            {
+             "textRun": {
+              "content": "Low"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "text": {
+           "textElements": [
+            {
+             "paragraphMarker": {}
+            },
+            {
+             "textRun": {
+              "content": "2 days"
+             }
+            }
+           ]
+          }
+         },
+         {
+          "text": {
+           "textElements": [
+            {
+             "paragraphMarker": {}
+            },
+            {
+             "textRun": {
+              "content": "10 days"
+             }
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ],
+   "slideProperties": {
+    "layoutObjectId": "layout1",
+    "notesPage": {
+     "objectId": "s3_notes_page",
+     "notesProperties": {
+      "speakerNotesObjectId": "s3_notes"
+     },
+     "pageElements": [
+      {
+       "objectId": "s3_thumb",
+       "image": {}
+      },
+      {
+       "objectId": "s3_notes",
+       "shape": {
+        "text": {
+         "textElements": [
+          {
+           "paragraphMarker": {}
+          },
+          {
+           "textRun": {
+            "content": "Urgent means a customer cannot log in or pay."
+           }
+          }
+         ]
+        },
+        "placeholder": {
+         "type": "BODY"
+        }
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "objectId": "slide4",
+   "pageElements": [
+    {
+     "objectId": "s4_title",
+     "shape": {
+      "text": {
+       "textElements": [
+        {
+         "paragraphMarker": {}
+        },
+        {
+         "textRun": {
+          "content": "Tone of voice"
+         }
+        }
+       ]
+      },
+      "placeholder": {
+       "type": "TITLE"
+      }
+     }
+    },
+    {
+     "objectId": "s4_body",
+     "shape": {
+      "text": {
+       "textElements": [
+        {
+         "paragraphMarker": {}
+        },
+        {
+         "textRun": {
+          "content": "Plain words, short sentences, no blame.\nSay what happens next and when.\n"
+         }
+        }
+       ]
+      },
+      "placeholder": {
+       "type": "BODY"
+      }
+     }
+    }
+   ],
+   "slideProperties": {
+    "layoutObjectId": "layout1",
+    "notesPage": {
+     "objectId": "s4_notes_page",
+     "notesProperties": {
+      "speakerNotesObjectId": "s4_notes"
+     },
+     "pageElements": [
+      {
+       "objectId": "s4_thumb",
+       "image": {}
+      }
+     ]
+    }
+   }
+  },
+  {
+   "objectId": "slide5",
+   "pageElements": [
+    {
+     "objectId": "s5_title",
+     "shape": {
+      "text": {
+       "textElements": [
+        {
+         "paragraphMarker": {}
+        },
+        {
+         "textRun": {
+          "content": "Your first week"
+         }
+        }
+       ]
+      },
+      "placeholder": {
+       "type": "TITLE"
+      }
+     }
+    },
+    {
+     "objectId": "s5_body",
+     "shape": {
+      "text": {
+       "textElements": [
+        {
+         "paragraphMarker": {}
+        },
+        {
+         "textRun": {
+          "content": "Shadow a senior agent for two days.\nAnswer low-priority tickets from day three.\n"
+         }
+        }
+       ]
+      },
+      "placeholder": {
+       "type": "BODY"
+      }
+     }
+    }
+   ],
+   "slideProperties": {
+    "layoutObjectId": "layout1",
+    "notesPage": {
+     "objectId": "s5_notes_page",
+     "notesProperties": {
+      "speakerNotesObjectId": "s5_notes"
+     },
+     "pageElements": [
+      {
+       "objectId": "s5_thumb",
+       "image": {}
+      },
+      {
+       "objectId": "s5_notes",
+       "shape": {
+        "text": {
+         "textElements": [
+          {
+           "paragraphMarker": {}
+          },
+          {
+           "textRun": {
+            "content": "Your buddy reviews your first twenty replies before they are sent."
+           }
+          }
+         ]
+        },
+        "placeholder": {
+         "type": "BODY"
+        }
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

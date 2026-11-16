@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>How lectern answers a question</title>
+  <style>
+    section { font-family: system-ui, sans-serif; padding: 2rem; }
+    h1, h2 { color: #1d3557; }
+    .muted { color: #6c757d; }
+  </style>
+</head>
+<body>
+<div class="reveal"><div class="slides">
+  <section>
+    <h1>How lectern answers a question</h1>
+    <p>Every slide in a deck gets its own agent.</p>
+    <p class="muted">A ten-minute tour of the code.</p>
+    <aside class="notes">Welcome everyone. This talk walks through what happens between typing a question
+    and seeing an answer with citation chips.</aside>
+  </section>
+  <section data-persona="You are a patient teacher. Explain ingest step by step.">
+    <h2>A deck becomes slide agents</h2>
+    <ul>
+      <li>Upload an HTML deck, a .pptx file or a Google Slides export.</li>
+      <li>The ingest graph detects the format, parses it, normalises it and builds an outline.</li>
+      <li>Each slide keeps its title, its body text and its presenter notes.</li>
+    </ul>
+    <aside class="notes">The three adapters all produce the same Deck model, so nothing after ingest
+    cares where a deck came from.</aside>
+  </section>
+  <section>
+    <section>
+      <h2>The answer graph</h2>
+      <p>gate, route, assemble, answer, cite, persist.</p>
+      <p>Persist always runs last and writes the trace.</p>
+      <aside class="notes">Point at the trace drawer: every step shows the block ids it used and how
+      long it took.</aside>
+    </section>
+    <section data-notes="If a draft cites a block that was not in context, cite sends it back to answer, at most twice.">
+      <h2>Citations are checked</h2>
+      <p>The cite node keeps only markers that name a block in the assembled context.</p>
+      <p>After two failed revisions the agent says it cannot support an answer.</p>
+    </section>
+  </section>
+  <section>
+    <h2>Handoffs between slides</h2>
+    <p>Ask slide 2 about slide 5 and slide 5's agent answers.</p>
+    <p>A question is handed off at most once, so agents never ping-pong.</p>
+    <p>Questions about the whole deck go to the deck agent.</p>
+  </section>
+  <section>
+    <h2>Try it yourself</h2>
+    <p>Run make dev, open a deck and ask: what does this slide say about citations?</p>
+    <aside class="notes">Leave time for questions. The README has a section on reading the graph.</aside>
+  </section>
+</div></div>
+</body>
+</html>

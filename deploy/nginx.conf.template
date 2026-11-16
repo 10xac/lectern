@@ -1,0 +1,53 @@
+# A host nginx in front of lectern. Fill the placeholders with envsubst, naming only these variables
+# so nginx's own $variables stay as they are:
+#   SERVER_NAME=lectern.example.org TLS_CERT=/etc/letsencrypt/live/lectern.example.org/fullchain.pem \
+#   TLS_KEY=/etc/letsencrypt/live/lectern.example.org/privkey.pem LECTERN_PORT=8790 \
+#   envsubst '${SERVER_NAME} ${TLS_CERT} ${TLS_KEY} ${LECTERN_PORT}' \
+#     < deploy/nginx.conf.template | sudo tee /etc/nginx/sites-available/${SERVER_NAME}
+#
+# The listeners are IPv4 only and the listen lines carry no http2: other virtual hosts share
+# 0.0.0.0:443, and http2 on one listen line would switch all of them to HTTP/2.
+
+server {
+    listen 80;
+    server_name ${SERVER_NAME};
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name ${SERVER_NAME};
+
+    ssl_certificate     ${TLS_CERT};
+    ssl_certificate_key ${TLS_KEY};
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    client_max_body_size 21m;   # lectern caps a file at 20 MB
+
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # Job progress (SSE) and MCP's streamable HTTP must not be buffered.
+    location ~ ^/(api/)?jobs/[^/]+/events$ {
+        proxy_pass http://127.0.0.1:${LECTERN_PORT};
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
+    }
+
+    location /mcp {
+        proxy_pass http://127.0.0.1:${LECTERN_PORT};
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 1h;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:${LECTERN_PORT};
+        proxy_http_version 1.1;
+        proxy_read_timeout 120s;
+    }
+}

@@ -1,0 +1,27 @@
+# lectern behind a host nginx. From the repository root:
+#   docker compose -f deploy/compose.yml up -d --build
+# The port is bound to 127.0.0.1 only: nginx (deploy/nginx.conf.template) is the public entrance.
+name: lectern
+services:
+  lectern:
+    build:
+      context: ..
+      args:
+        EXTRAS: ${LECTERN_EXTRAS:-}
+    image: lectern:local
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      LECTERN_PUBLIC: "1"           # login required: user accounts, and personal tokens for /mcp
+      LECTERN_TRUST_PROXY: "1"      # client IPs come from nginx's X-Real-IP
+      LECTERN_HOSTS: ${LECTERN_HOSTS:?set LECTERN_HOSTS to the public host name, e.g. lectern.example.org}
+      LECTERN_DB: /data/lectern.db
+      LECTERN_BLOBS: ${LECTERN_BLOBS_IN_CONTAINER:-/data/blobs}
+    ports:
+      - "127.0.0.1:${LECTERN_PORT:-8790}:8000"
+    volumes:
+      - lectern-db:/data
+      - lectern-blobs:/data/blobs
+volumes:
+  lectern-db:
+  lectern-blobs:

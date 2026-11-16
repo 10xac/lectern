@@ -1,0 +1,236 @@
+:root {
+  --bg: #f7f7f5;
+  --panel: #ffffff;
+  --ink: #1f2328;
+  --muted: #6a737d;
+  --line: #d8dee4;
+  --accent: #1d4ed8;
+  --accent-soft: #dbeafe;
+  --warn: #b42318;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--warn);
+}
+
+.topbar {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.brand {
+  border: 0;
+  background: none;
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.home {
+  max-width: 48rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.deck-list li {
+  margin: 0.4rem 0;
+}
+
+.upload label {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.viewer {
+  display: grid;
+  grid-template-columns: 14rem 1fr 22rem;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.rail ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rail button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: none;
+  padding: 0.4rem;
+  border-radius: 6px;
+}
+
+.rail button[aria-current='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.rail-n {
+  color: var(--muted);
+  margin-right: 0.3rem;
+}
+
+.slide-pane {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.slide-frame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--line);
+}
+
+.slide-card {
+  min-height: 16rem;
+}
+
+.notes-text {
+  white-space: pre-wrap;
+  background: var(--bg);
+  padding: 0.6rem;
+  border-radius: 6px;
+}
+
+.attachments .highlight {
+  background: var(--accent-soft);
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.messages {
+  list-style: none;
+  padding: 0;
+  flex: 1;
+}
+
+.message {
+  margin: 0.5rem 0;
+  padding: 0.5rem;
+  border-radius: 6px;
+}
+
+.message.user {
+  background: var(--accent-soft);
+}
+
+.message.agent {
+  background: var(--bg);
+}
+
+.message.failed {
+  color: var(--warn);
+}
+
+.agent {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.chip {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background: var(--panel);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.link {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  padding: 0;
+  font-size: 0.8rem;
+}
+
+.chat form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat input {
+  flex: 1;
+  padding: 0.4rem;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(36rem, 100vw);
+  overflow: auto;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  padding: 1rem;
+  box-shadow: -4px 0 12px rgb(0 0 0 / 10%);
+}
+
+.drawer header {
+  display: flex;
+  justify-content: space-between;
+}
+
+.drawer table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.drawer td,
+.drawer th {
+  border-bottom: 1px solid var(--line);
+  padding: 0.25rem;
+  text-align: left;
+}
+
+.ids {
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 60rem) {
+  .viewer {
+    grid-template-columns: 1fr;
+  }
+}
