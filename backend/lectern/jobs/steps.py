@@ -25,6 +25,15 @@ def probes_for(ctx: Context, spec: AgentSpec, env: Mapping[str, str]) -> Probes:
     return probe(ctx.question, docs, memory, spec, ctx.provider.name, env)
 
 
+def about(ctx: Context) -> dict[str, Any]:
+    """Where the question was asked, for System1: the deck, the slide and the outline."""
+    slide = ctx.deck.slide(ctx.slide) if ctx.slide is not None else None
+    where: dict[str, Any] = {"deck": ctx.deck.title, "slides": len(ctx.deck.slides)}
+    if slide is not None:
+        where |= {"slide": slide.n, "slide_title": slide.title}
+    return where | {"outline": ctx.deck.outline}
+
+
 def checked(sources: Sequence[SourceReport]) -> str:
     """ "the deck (nothing matched); skipped the web (no key)" — what was looked at and why not more."""
     looked = [f"{NAMES[s.source]} ({s.reason or 'no answer'})" for s in sources if s.status != "skipped"]

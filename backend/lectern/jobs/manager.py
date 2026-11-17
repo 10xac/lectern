@@ -26,7 +26,7 @@ from lectern.jobs import research, steps  # web registers the W researcher
 from lectern.jobs.fusion import Fusion, Outcome, decide, fuse
 from lectern.jobs.research import Context, Found, OutOfCalls, ToolCalls, skipped
 from lectern.jobs.rows import JobRows
-from lectern.jobs.steps import probes_for
+from lectern.jobs.steps import about, probes_for
 from lectern.jobs.triage import Triage, triage
 from lectern.models import TERMINAL, Answer, Deck, Job, JobEvent, JobStatus, SourceName, SourceReport, Turn
 from lectern.providers.base import Provider
@@ -179,7 +179,8 @@ class JobManager:
         provider = self.providers(spec.model) if self.providers else self.provider
         ctx = Context(deck, job.slide, job.question, provider, self.rows, self.http, env, self.dna)
         self.status(job.id, "triaging")
-        tri = await asyncio.to_thread(triage, job.question, probes_for(ctx, spec, env), spec, env, self.http)
+        probes = probes_for(ctx, spec, env)
+        tri = await asyncio.to_thread(triage, job.question, probes, spec, env, self.http, about(ctx))
         self.emit(job.id, "triage", tri.public())
         sources.extend(skipped(s, why) for s, why in tri.route.items() if why is not None)
         if tri.engage < 0.5:

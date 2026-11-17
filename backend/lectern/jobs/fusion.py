@@ -89,6 +89,9 @@ def fuse(reports: Sequence[SourceReport], p_none: float | None = None) -> Fusion
     candidates = [*sorted({v for v in votes.values() if v != NONE}), NONE]
     bayes, z = bayesian(voters, votes, candidates, p_none)
     ds, kappa = dempster_shafer(voters, votes, candidates)
+    sources = [r for r in voters if r.source != "M"]
+    if sources:  # past answers are conversation, not a source: their disagreement is not a conflict
+        _, kappa = dempster_shafer(sources, votes, candidates)
     return Fusion(candidates, labels, votes, bayes, z, ds, kappa)
 
 

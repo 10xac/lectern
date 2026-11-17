@@ -24,7 +24,8 @@ from lectern.dna.graph import search_blocks
 from lectern.graph.state import Block
 from lectern.http import Http
 from lectern.jobs.rows import JobRows
-from lectern.models import Deck, SourceName, SourceReport
+from lectern.jobs.triage import ABOUT_DECK
+from lectern.models import Deck, Job, SourceName, SourceReport
 from lectern.providers.base import Provider
 from lectern.search import bm25, search_attachments, search_slides, tokenize, top_k
 
@@ -89,6 +90,16 @@ def answer_from(ctx: Context, blocks: list[Block], system: str = "Answer from th
     return ctx.provider.complete(system, blocks, ctx.question) if blocks else ""
 
 
+def subject_blocks(ctx: Context) -> list[Block]:
+    """For a question about this slide or deck: the slide asked on, and the deck's outline."""
+    slide = ctx.deck.slide(ctx.slide) if ctx.slide is not None else None
+    found = [Block(f"slide:{slide.n}:body", f"{slide.title}\n{slide.body}")] if slide is not None else []
+    if slide is not None and slide.notes:
+        found.append(Block(f"slide:{slide.n}:notes", slide.notes))
+    outline = ctx.deck.outline or "\n".join(f"{s.n}. {s.title}" for s in ctx.deck.slides)
+    return [*found, Block("deck:outline", f"{ctx.deck.title}\n{outline}")]
+
+
 def research_k(ctx: Context, calls: ToolCalls) -> Found:
     calls.take()  # deck_search
     deck = ctx.deck
@@ -106,6 +117,9 @@ def research_k(ctx: Context, calls: ToolCalls) -> Found:
         chunks = search_attachments(ctx.rows.store, ctx.deck.id, query, TOP)
         blocks += [Block(f"att:{c.attachment_id}:{c.index}", c.text) for c in chunks]
     g = k_ghost(best)
+    if ABOUT_DECK.search(ctx.question):  # "what is this talk about?": the deck is the answer's subject
+        blocks = subject_blocks(ctx) + blocks
+        g = min(g, 0.1)
     if ctx.dna is not None:  # the DNA and its references are part of the trusted base, weighted by degree
         dna = search_blocks(ctx.dna, deck, ctx.slide, ctx.question)
         blocks = dna + blocks
@@ -113,15 +127,26 @@ def research_k(ctx: Context, calls: ToolCalls) -> Found:
     return report("K", ctx, blocks, calls=1, r=0.9, g_hit=g), blocks
 
 
+def reusable(job: Job) -> bool:
+    """A past answer worth recalling: confident (not qualified or hedged) and not voted down."""
+    if job.feedback == -1 or job.answer is None:
+        return False
+    verdict = (job.answer.confidence or {}).get("verdict", "answer")
+    return bool(verdict == "answer")
+
+
 def research_m(ctx: Context, calls: ToolCalls) -> Found:
     calls.take()  # memory_search
-    past = ctx.rows.answered(ctx.deck.id or 0)
+    every = ctx.rows.answered(ctx.deck.id or 0)
+    past = [j for j in every if reusable(j)]
     docs = [f"{j.question}\n{j.answer.answer if j.answer else ''}" for j in past]
     hits = top_k(ctx.question, docs, TOP)
     blocks = [Block(f"mem:{past[i].id}", docs[i]) for i in hits]
     ups = sum(1 for i in hits if past[i].feedback == 1)
-    downs = sum(1 for i in hits if past[i].feedback == -1)
-    r = 0.3 + 0.6 * (1 + ups) / (2 + ups + downs)  # memory's track record on similar questions
+    downs = sum(1 for j in every if j.feedback == -1)
+    # Past answers are conversation, not a source: at most 0.5, below the deck's 0.9, so the deck
+    # wins when they disagree; thumbs-down anywhere on the deck lowers trust in all of them.
+    r = 0.15 + 0.35 * (1 + ups) / (2 + ups + downs)
     return report("M", ctx, blocks, calls=1, r=round(r, 3), g_hit=0.5), blocks
 
 

@@ -53,6 +53,9 @@ def layer(agent: Mapping[str, Any] | None, persona: str | None) -> dict[str, Any
     return out
 
 
+WEB_TOOLS = ("web_search", "fetch_url")
+
+
 def resolve(
     deck: Deck,
     n: int | None,
@@ -64,9 +67,12 @@ def resolve(
     base = packaged_default()
     if n is None:
         base = base | {"id": DECK_AGENT, "persona": DECK_PERSONA}
+    from_env = env_layer(env)
+    if env.get("EXA_API_KEY"):  # a web key is set: the web researcher (W) may run, as triage routes it
+        from_env |= {"tools": [*base["tools"], *(t for t in WEB_TOOLS if t not in base["tools"])]}
     layers: list[tuple[str, Mapping[str, Any] | None]] = [
         ("default", base),
-        ("env", env_layer(env)),
+        ("env", from_env),
         ("deck", layer(deck.agent, deck.persona)),
     ]
     slide = deck.slide(n) if n is not None else None

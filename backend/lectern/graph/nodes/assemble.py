@@ -8,7 +8,8 @@ A slide agent's budget order is: the current slide, its notes, this deck's attac
 BM25 chunks), the neighbouring slides, then the outline. Blocks are taken in that order while
 they fit; one that does not fit is skipped and the next is tried. The deck agent reads the
 outline, the slides that best match the question, then attachments. A job's research evidence
-comes second in both orders, and a block that is already in is not added twice.
+comes second in both orders, except past answers (``mem:``), which come last: they are
+conversation, not sources. A block that is already in is not added twice.
 """
 
 from __future__ import annotations
@@ -78,6 +79,8 @@ def assemble(state: GraphState, ports: Ports) -> NodeResult:
     assert deck is not None
     by_deck = state.route is not None and state.route.kind == "deck"
     groups = deck_groups(state, ports, deck) if by_deck else slide_groups(state, ports, deck)
-    if state.evidence:  # research results come right after the slide (or the outline) itself
-        groups.insert(1, list(state.evidence))
+    if state.evidence:  # research results come right after the slide (or the outline) itself,
+        found = [b for b in state.evidence if not b.id.startswith("mem:")]
+        groups.insert(1, found)
+        groups.append([b for b in state.evidence if b.id.startswith("mem:")])  # past answers: last
     return NodeResult({"blocks": fit(groups, state.budget)})

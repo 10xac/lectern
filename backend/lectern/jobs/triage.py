@@ -35,6 +35,12 @@ STOP = set(
     "their them there these they this to was we were what when where which who why will with you your".split()
 )
 SOURCES: tuple[SourceName, ...] = ("K", "M", "W", "P")
+# A question about the thing it is asked on ("what is this talk about?", "the core ideas of the
+# slide"): the deck is its subject, so the deck answers it however few words it shares with it.
+ABOUT_DECK = re.compile(
+    r"\b(this|the|that|current|your|our)\s+(talk|deck|presentation|slides?|lecture|session|page|keynote)\b",
+    re.I,
+)
 
 
 @dataclass(frozen=True)
@@ -48,6 +54,7 @@ class Probes:
     tools: tuple[str, ...]
     model: str
     w_ready: bool  # web tools enabled and a key set
+    about_deck: bool = False  # the question refers to this slide, talk or deck (ABOUT_DECK)
 
 
 @dataclass(frozen=True)
@@ -76,7 +83,7 @@ class Triage:
 
 def coverage_of(k_norm: float, m_hits: int, recency: bool) -> dict[str, float]:
     if k_norm >= 0.5 and not recency:
-        return {"covered": 0.8, "rare": 0.15, "ghost": 0.05}
+        return dict(COVERED)
     if k_norm > 0 or m_hits or recency:
         return {"covered": 0.2, "rare": 0.65, "ghost": 0.15}
     return {"covered": 0.05, "rare": 0.25, "ghost": 0.7}
@@ -98,9 +105,15 @@ def rules(p: Probes) -> Triage:
         if p.model == "fake"
         else ("K holds the answer; the model is not needed" if covered else None),
     }
-    ambiguity = 0.8 if p.content_terms <= 1 else 0.1
-    engage = 0.1 if p.content_terms == 0 else 0.95
+    if p.about_deck:  # its referent is the deck itself: clear, in scope and covered by K
+        coverage, covered = COVERED, True
+        route["W"] = web_route(p, covered)
+    ambiguity = 0.8 if p.content_terms <= 1 and not p.about_deck else 0.1
+    engage = 0.1 if p.content_terms == 0 and not p.about_deck else 0.95
     return Triage(engage, route, coverage, 0 if covered else 1, ambiguity, probes=asdict(p))
+
+
+COVERED = {"covered": 0.8, "rare": 0.15, "ghost": 0.05}
 
 
 def web_route(p: Probes, covered: bool) -> str | None:
@@ -132,11 +145,20 @@ def probe(
         tools=tuple(spec.tools),
         model=model,
         w_ready=bool(env.get("EXA_API_KEY")),
+        about_deck=bool(ABOUT_DECK.search(question)),
     )
 
 
-def triage(question: str, p: Probes, spec: AgentSpec, env: Mapping[str, str], http: Http) -> Triage:
-    """The System1 the owner configured (jev, or a structured model) when it answers; the rules otherwise."""
+def triage(
+    question: str,
+    p: Probes,
+    spec: AgentSpec,
+    env: Mapping[str, str],
+    http: Http,
+    about: Mapping[str, Any] | None = None,
+) -> Triage:
+    """The System1 the owner configured (jev, or a structured model) when it answers; the rules otherwise.
+    ``about`` says where the question was asked (deck title, slide number and title, outline)."""
     s1 = resolve_system1(env)
     base = replace(rules(p), system1=s1.public(env))
     if spec.triage.provider == "rules" or s1.kind == "rules":
@@ -144,7 +166,7 @@ def triage(question: str, p: Probes, spec: AgentSpec, env: Mapping[str, str], ht
     retrying = RetryOnce(http)
     try:
         if s1.kind == "jev":
-            body = {"state": jev_state(question, p), "model": s1.model, "questions": JEV_QUESTIONS}
+            body = {"state": jev_state(question, p, about), "model": s1.model, "questions": JEV_QUESTIONS}
             key = env.get(s1.key_env or "", "")
             headers = {
                 "Authorization": f"Bearer {key}",
@@ -153,7 +175,7 @@ def triage(question: str, p: Probes, spec: AgentSpec, env: Mapping[str, str], ht
             }
             answers = retrying.post_json(JEV_URL, body, headers, JEV_TIMEOUT_S)["answers"]
         else:
-            answers = structured_answers(s1, jev_state(question, p), JEV_QUESTIONS, env, retrying)
+            answers = structured_answers(s1, jev_state(question, p, about), JEV_QUESTIONS, env, retrying)
         return from_answers(base, answers, s1.label)
     except HttpStatusError as exc:
         # A 422 means lectern sent a bad request: a bug to surface, not just an outage.
@@ -163,10 +185,28 @@ def triage(question: str, p: Probes, spec: AgentSpec, env: Mapping[str, str], ht
         return replace(base, note=f"{s1.label} failed ({type(exc).__name__}); used rules")
 
 
-def jev_state(question: str, p: Probes) -> dict[str, Any]:
-    state = {"question": question[:600], "probes": asdict(p)}
-    if len(json.dumps(state).encode()) > MAX_STATE_BYTES:
-        state["question"] = question[:200]
+CONTEXT_NOTE = (
+    "The question is asked by a viewer of this deck, on the slide named here (or on the whole deck). "
+    "'This talk', 'this deck', 'the presentation' and 'the slide' mean this deck and this slide, "
+    "which the deck source (K) holds."
+)
+
+
+def jev_state(question: str, p: Probes, about: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """What System1 sees: the question, where it was asked, and the probes, within MAX_STATE_BYTES
+    (the outline is cut first, then the question)."""
+    state: dict[str, Any] = {"question": question[:600], "probes": asdict(p)}
+    if about:
+        state = {"question": state["question"], "context": CONTEXT_NOTE, "asked_on": dict(about)} | state
+    for _ in range(40):
+        if len(json.dumps(state).encode()) <= MAX_STATE_BYTES:
+            break
+        outline = state.get("asked_on", {}).get("outline", "")
+        if outline:
+            state["asked_on"]["outline"] = outline[: max(0, len(outline) - 200)].rsplit("\n", 1)[0]
+        else:
+            state["question"] = question[:200]
+            state.get("asked_on", {}).pop("outline", None)
     return state
 
 
@@ -238,9 +278,16 @@ def from_answers(base: Triage, answers: Mapping[str, Any], by: str) -> Triage:
         if route[s] is None and prob[f"consult_{s}"] < 0.3:
             route[s] = f"{by}: unlikely to hold the answer (p={prob[f'consult_{s}']:.2f})"
     coverage = coverage_from(answers.get("coverage"))
-    return replace(
-        base, engage=prob["engage"], route=route, coverage=coverage, ambiguity=prob["ambiguous"], by=by
-    )
+    engage, ambiguity = prob["engage"], prob["ambiguous"]
+    if base.probes.get("about_deck") or base.kind == "covered":
+        # Anchored in the deck (it asks about this slide or talk, or the deck clearly matches): System1
+        # may lower confidence but not abstain, ask back or cut K. It only narrows the rules here.
+        engage, ambiguity = max(engage, 0.9), min(ambiguity, base.ambiguity)
+        route["K"] = base.route["K"]
+        coverage = {c: (min if c == "ghost" else max)(coverage[c], base.coverage[c]) for c in COVERAGE}
+        total = sum(coverage.values())
+        coverage = {c: round(v / total, 3) for c, v in coverage.items()}
+    return replace(base, engage=engage, route=route, coverage=coverage, ambiguity=ambiguity, by=by)
 
 
 class RetryOnce:

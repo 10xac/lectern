@@ -24,7 +24,8 @@ DECK_WORDS = re.compile(
     r"\b(deck|presentation|talk|overall|whole|all (the )?slides|every slide|agenda|summari[sz]e|summary)\b",
     re.IGNORECASE,
 )
-HERE_WORDS = re.compile(r"\b(this|here|current)\b", re.IGNORECASE)
+# "this", or "the slide" without a number: the slide the question is asked on.
+HERE_WORDS = re.compile(r"\b(this|here|current)\b|\bthe slide\b(?!\s*#?\s*\d)", re.IGNORECASE)
 
 
 def rules(question: str, current: int, size: int) -> Route | None:

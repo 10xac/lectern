@@ -268,8 +268,12 @@ def test_feedback_moves_memory_reliability_and_jobs_export() -> None:
         assert client.post(f"/jobs/{first['id']}/feedback", json={"vote": "meh"}).status_code == 422
         second = client.post(f"/decks/{d}/slides/2/ask?wait=true", json=ask).json()
         m = next(s for s in second["sources"] if s["source"] == "M")
-        assert m["status"] == "done" and m["r"] == pytest.approx(0.3 + 0.6 * 2 / 3, abs=1e-3)
+        assert m["status"] == "done" and m["r"] == pytest.approx(0.15 + 0.35 * 2 / 3, abs=1e-3)
+        assert client.post(f"/jobs/{second['id']}/feedback", json={"vote": "down"}).json()["feedback"] == -1
         lines = [json.loads(x) for x in client.get("/jobs.jsonl").text.splitlines()]
         assert [x["id"] for x in lines] == [first["id"], second["id"]]
         assert lines[0]["feedback"] == 1 and lines[0]["verdict"] == "answer"
         assert lines[1]["triage"]["probes"]["m_hits"] == 1
+        third = client.post(f"/decks/{d}/slides/2/ask?wait=true", json=ask).json()
+        m = next(s for s in third["sources"] if s["source"] == "M")  # the voted-down answer is not recalled
+        assert m["r"] == pytest.approx(0.15 + 0.35 * 2 / 4, abs=1e-3) and m["r"] < 0.5

@@ -22,6 +22,7 @@ from lectern.store import Store
         ("Explain this", Route("this_slide")),
         ("What about slide 1?", Route("this_slide")),  # the current slide
         ("What about slide 99?", Route("this_slide")),  # no such slide
+        ("what are the core ideas of the slide?", Route("this_slide")),
         ("Why March?", None),
     ],
 )
