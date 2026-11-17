@@ -114,8 +114,9 @@ def test_discovery_and_the_challenge(client: TestClient) -> None:
         in unauth.headers["www-authenticate"]
     )
     resource = client.get("/.well-known/oauth-protected-resource/mcp").json()
-    assert resource["resource"] == f"{BASE}/mcp" and resource["authorization_servers"] == [f"{BASE}/"]
+    assert resource["resource"] == f"{BASE}/mcp" and resource["authorization_servers"] == [BASE]
     meta = client.get("/.well-known/oauth-authorization-server").json()
+    assert meta["issuer"] == BASE  # exactly the metadata URL's origin, and the iss we return
     assert meta["registration_endpoint"] == f"{BASE}/register" and meta[
         "code_challenge_methods_supported"
     ] == ["S256"]

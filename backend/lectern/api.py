@@ -135,7 +135,7 @@ def create_app(*args: Any, **kwargs: Any) -> FastAPI:
         async with mcp.session_manager.run():
             yield
 
-    app = FastAPI(title="lectern", version="0.3.0", lifespan=lifespan)
+    app = FastAPI(title="lectern", version="0.3.1", lifespan=lifespan)
     app.state.hub = hub
     guard.install(app, hub.users)
     add_auth_routes(app, hub.users, hub.settings, guard.auth_on(os.environ))

@@ -104,6 +104,15 @@ def protocol_routes(oauth: OAuth) -> list[Route]:
     resource = create_protected_resource_routes(
         AnyHttpUrl(oauth.resource), [issuer], scopes_supported=[SCOPE], resource_name="lectern"
     )
+
+    async def resource_meta(request: Request) -> Response:
+        return JSONResponse(resource_json(oauth), headers={"Cache-Control": "public, max-age=3600"})
+
+    resource = [
+        Route(r.path, cors_middleware(resource_meta, ["GET", "OPTIONS"]), methods=["GET", "OPTIONS"])
+        for r in resource
+        if isinstance(r, Route)
+    ]
     ours = {
         "/.well-known/oauth-authorization-server": Route(
             "/.well-known/oauth-authorization-server",
@@ -130,8 +139,23 @@ def metadata_json(oauth: OAuth) -> dict[str, Any]:
         ClientRegistrationOptions(enabled=True, valid_scopes=[SCOPE], default_scopes=[SCOPE]),
         RevocationOptions(enabled=True),
     )
+    # RFC 8414 §3.3: the issuer is exactly the metadata URL minus the well-known suffix, with no
+    # trailing slash, and equal to the ``iss`` we return (RFC 9207). AnyHttpUrl adds a slash to a
+    # bare host, and claude.ai refuses to connect when the two differ.
     return meta.model_dump(mode="json", exclude_none=True) | {
-        "authorization_response_iss_parameter_supported": True
+        "issuer": oauth.issuer,
+        "authorization_response_iss_parameter_supported": True,
+    }
+
+
+def resource_json(oauth: OAuth) -> dict[str, Any]:
+    """RFC 9728 metadata for /mcp, naming the authorization server by its exact issuer."""
+    return {
+        "resource": oauth.resource,
+        "authorization_servers": [oauth.issuer],
+        "scopes_supported": [SCOPE],
+        "bearer_methods_supported": ["header"],
+        "resource_name": "lectern",
     }
 
 
