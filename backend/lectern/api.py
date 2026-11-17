@@ -44,7 +44,8 @@ from lectern.hub import Hub
 from lectern.jobs.manager import JobManager
 from lectern.jobs.routes import add_job_routes
 from lectern.jobs.system1 import resolve_system1
-from lectern.models import Attachment, Deck, Trace
+from lectern.models import Attachment, Deck, QueryLogEntry, Trace
+from lectern.query_log import QueryLog
 from lectern.oauth import OAuth
 from lectern.oauth_routes import add_oauth_routes
 from lectern.providers.base import Provider, get_provider, provider_for
@@ -174,6 +175,12 @@ def create_app(*args: Any, **kwargs: Any) -> FastAPI:
         if trace is None:
             raise HTTPException(404, f"no trace {trace_id}")
         return trace
+
+    qlog = QueryLog(db)
+
+    @app.get("/query-log")
+    def get_query_log(deck_id: int | None = None, limit: int = 200) -> list[QueryLogEntry]:
+        return qlog.entries(deck_id, limit)
 
     add_deck_routes(app, hub)
     add_agent_routes(app, hub)

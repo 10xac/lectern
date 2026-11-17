@@ -146,6 +146,24 @@ def citation_for(block_id: str) -> Citation:
     return Citation(block_id=block_id)
 
 
+class QueryLogEntry(BaseModel):
+    """One logged question-answer pair, for evaluation and calibration."""
+
+    id: int
+    deck_id: int
+    slide: int | None
+    question: str
+    agent: str
+    outcome: str
+    answer: str
+    citations: list[str]
+    block_ids: list[str]
+    bm25_scores: dict[str, float]
+    trace_id: int | None = None
+    ms: float | None = None
+    created: str = ""
+
+
 class IngestError(ValueError):
     """A deck or attachment that cannot be read; the API answers 422 with the message."""
 

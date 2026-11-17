@@ -36,6 +36,12 @@ CREATE TABLE IF NOT EXISTS traces (
 CREATE TABLE IF NOT EXISTS trace_steps (
   trace_id INTEGER NOT NULL REFERENCES traces(id), idx INTEGER NOT NULL, node TEXT NOT NULL,
   outcome TEXT NOT NULL, block_ids TEXT NOT NULL, ms REAL, PRIMARY KEY (trace_id, idx));
+CREATE TABLE IF NOT EXISTS query_log (
+  id INTEGER PRIMARY KEY, deck_id INTEGER NOT NULL, slide INTEGER,
+  question TEXT NOT NULL, agent TEXT NOT NULL, outcome TEXT NOT NULL,
+  answer TEXT NOT NULL, citations TEXT NOT NULL, block_ids TEXT NOT NULL,
+  bm25_scores TEXT NOT NULL, trace_id INTEGER, ms REAL,
+  created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')));
 """
 # Columns added after v0.1: (table, column, type). ``_migrate`` adds the missing ones, so an
 # existing lectern.db keeps working.
@@ -67,6 +73,8 @@ CASCADE = [
     ("jobs", "deck_id = ?"),
     ("slide_messages", "deck_id = ?"),
     ("files", "deck_id = ?"),
+    ("query_log", "deck_id = ?"),
+    ("embeddings", "deck_id = ?"),
     ("decks", "id = ?"),
 ]
 
@@ -89,6 +97,9 @@ class Store:
         with self.tx() as db:
             db.executescript(SCHEMA)
             self._migrate(db)
+        if str(path) != ":memory:":
+            self._db.execute("PRAGMA journal_mode=WAL")
+            self._db.execute("PRAGMA busy_timeout=5000")
 
     @staticmethod
     def _migrate(db: sqlite3.Connection) -> None:

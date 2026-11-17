@@ -24,6 +24,13 @@ lectern = "lectern.cli:main"
 s3 = [
     "boto3>=1.35",
 ]
+embeddings = [
+    "sentence-transformers>=3.0",
+]
+nli = [
+    "transformers>=4.30",
+    "torch>=2.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -55,6 +62,14 @@ packages = ["lectern"]
 
 [[tool.mypy.overrides]]
 module = ["pptx", "pptx.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["sentence_transformers", "sentence_transformers.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["transformers", "transformers.*", "torch", "torch.*"]
 ignore_missing_imports = true
 
 [dependency-groups]

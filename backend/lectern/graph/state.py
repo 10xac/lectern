@@ -132,6 +132,7 @@ class Ports:
     store: Store | None = None
     provider: Provider | None = None
     providers: Callable[[ModelBinding], Provider] | None = None  # one provider per model binding
+    query_log: Any = None  # a QueryLog instance, when logging is enabled
 
     def model_for(self, binding: ModelBinding | None) -> Provider | None:
         """The provider for one instance's binding, else the run's default provider."""

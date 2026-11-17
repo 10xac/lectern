@@ -50,7 +50,7 @@ def test_fake_provider_is_byte_identical(store: Store, kettle: Deck) -> None:
     assert first.answer == (
         "Online shipping moved to a weekly batch. [slide:3:body]"
         " 2026-W27, Online, 0, 61, weekly batch shipping starts [att:1:0]"
-        " The weekly batch cut shipping costs by a fifth but slowed delivery by two days. [slide:3:notes]"
+        " What changed in Q3 [slide:3:title]"
     )
     assert first.trace_id != second.trace_id
 

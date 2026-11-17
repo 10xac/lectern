@@ -1,10 +1,24 @@
 from lectern.models import Deck, Slide, TraceStep
 from lectern.search import bm25, search_attachments, search_slides, tokenize, top_k
+from lectern.stem import stem
 from lectern.store import Store
 
 
 def test_tokenize_drops_stopwords() -> None:
     assert tokenize("What is the Harbour cafe's Q3?") == ["harbour", "cafe", "s", "q3"]
+
+
+def test_stemmer_matches_morphological_variants() -> None:
+    assert stem("growing") == stem("grow")
+    assert stem("customers") == stem("customer")
+    assert stem("increased") == stem("increase")
+    assert stem("sales") == stem("sale")
+    assert stem("running") == stem("run")
+
+
+def test_bm25_matches_via_stemming() -> None:
+    docs = ["Sales increased 40% last quarter", "The team hired new staff", "Weather was sunny"]
+    assert top_k("increasing sales", docs, 1) == [0]
 
 
 def test_bm25_prefers_rare_matching_words() -> None:
@@ -48,3 +62,17 @@ def test_search_slides() -> None:
     )
     assert search_slides(deck, "dogs") == [2]
     assert search_slides(deck, "cats", k=1) == [1]
+
+
+def test_bm25f_title_outweighs_notes() -> None:
+    """A term in the title should beat the same term in the notes."""
+    deck = Deck(
+        title="d",
+        source="html",
+        slides=[
+            Slide(n=1, title="Revenue growth", body="summary", notes="details about team"),
+            Slide(n=2, title="Team update", body="summary", notes="details about revenue growth"),
+        ],
+    )
+    # "revenue" in title (slide 1) should outrank "revenue" in notes (slide 2)
+    assert search_slides(deck, "revenue", k=1) == [1]

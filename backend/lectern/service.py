@@ -18,6 +18,7 @@ from lectern.graph.templates import ANSWER, INGEST
 from lectern.ingest.attachments import chunk
 from lectern.models import Answer, Attachment, Deck, Turn, citation_for
 from lectern.providers.base import Provider
+from lectern.query_log import QueryLog
 from lectern.store import Store
 
 HISTORY_TURNS = 6
@@ -70,7 +71,8 @@ def ask(
         model=agent.spec.model,
         override=override,
     )
-    ports = Ports(store=store, provider=provider, providers=providers)
+    query_log = QueryLog(store) if store is not None else None
+    ports = Ports(store=store, provider=provider, providers=providers, query_log=query_log)
     result = run(ANSWER, state, ANSWER_NODES, ports, clock=clock)
     final = result.state
     return Answer(
