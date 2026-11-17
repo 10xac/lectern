@@ -39,7 +39,9 @@ def sign_in(client: TestClient, email: str, role: str = "member") -> dict[str, s
 
 def test_login_sessions_csrf_and_admins(client: TestClient) -> None:
     assert client.get("/auth/me").json() == {"auth": True, "user": None, "csrf": None}
-    assert client.get("/decks").status_code == 401 and client.get("/api/decks").status_code == 401
+    assert (
+        client.get("/decks").json() == [] and client.get("/decks/1").status_code == 401
+    )  # visitors: shared only
     admin = sign_in(client, "Admin@Example.org", "admin")
     assert client.get("/auth/me").json()["user"]["email"] == "admin@example.org"
     assert client.put("/slides?path=decks/a/01.md", content=b"# One").status_code == 403  # no CSRF token
@@ -47,9 +49,9 @@ def test_login_sessions_csrf_and_admins(client: TestClient) -> None:
     invited = client.post("/auth/users", json={"email": "m@example.org"}, headers=admin).json()
     token = invited["invite_url"].split("#invite=")[1]
     client.post("/auth/logout", headers=admin)
-    assert client.get("/decks").status_code == 401
+    assert client.get("/files").status_code == 401
     member = client.post("/auth/accept-invite", json={"token": token, "password": PASSWORD}).json()
-    assert member["user"]["role"] == "member" and client.get("/decks").status_code == 200
+    assert member["user"]["role"] == "member" and client.get("/files").status_code == 200
     assert client.get("/auth/users").status_code == 403  # only admins manage users
     assert client.post("/auth/accept-invite", json={"token": token, "password": PASSWORD}).status_code == 400
     assert (
@@ -57,7 +59,7 @@ def test_login_sessions_csrf_and_admins(client: TestClient) -> None:
     )
     users = client.app.state.hub.users  # type: ignore[attr-defined]
     users.update(member["user"]["id"], status="disabled")
-    assert client.get("/decks").status_code == 401  # disabling ends the session at once
+    assert client.get("/files").status_code == 401  # disabling ends the session at once
     with pytest.raises(Exception, match="at least one active admin"):
         users.update(1, role="member")
 

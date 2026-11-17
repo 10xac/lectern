@@ -25,7 +25,7 @@ for a public deployment, set at least:
 | `LECTERN_MAX_ASKS_PER_DAY` | The daily question budget across all users and surfaces (default 200): asks spend your API keys |
 | `LECTERN_ASKS_PER_MINUTE`, `LECTERN_UPLOADS_PER_MINUTE` | Per-IP limits (defaults 10 and 20) |
 | `LECTERN_MAX_UPLOAD_MB` | Request body cap (default 20) |
-| `LECTERN_PROVIDER`, `LECTERN_API_KEY`, `LECTERN_MODEL`, `LECTERN_BASE_URL`, `EXA_API_KEY`, `OPENROUTER_API_KEY` | Optional defaults: admins can set the model and keys in the web app (**Account → Models and keys**), which then take precedence |
+| `LECTERN_PROVIDER`, `LECTERN_API_KEY`, `LECTERN_MODEL`, `LECTERN_BASE_URL`, `EXA_API_KEY`, `OPENROUTER_API_KEY` | Optional defaults: admins can set the model and keys in the web app (**Platform → Models & keys**), which then take precedence |
 
 Keys set in the web app are stored encrypted with `LECTERN_SECRET_KEY`. Keys are never returned by
 the API (only set or unset, and their last four characters), and lectern removes the values of
@@ -40,9 +40,9 @@ prints a one-time link (valid 7 days) to open and choose a password:
 docker compose --env-file .env -f deploy/compose.yml exec lectern lectern users create-admin you@example.org
 ```
 
-Admins then invite others from **Account → Users** (each invite is a one-time link to send them),
+Admins then invite others from **People → Users** (each invite is a one-time link to send them),
 change roles, disable accounts and issue new links (which is also how a forgotten password is
-reset). Each person creates their own **MCP tokens** under **Account**: a token is shown once,
+reset). Each person creates their own **MCP tokens** under **Connect**: a token is shown once,
 lasts up to 90 days, and stops working when it is revoked or its owner is disabled.
 
 For an S3 (or MinIO, R2) blob store instead of the `/data/blobs` volume, set
@@ -78,7 +78,7 @@ To run two instances (say a dev and a production host name) on one machine, use 
 checkout, `.env`, `LECTERN_PORT` and compose project name (`docker compose -p lectern-dev …`)
 for each.
 
-Connect an AI tool to the deployment with a personal token from **Account → MCP tokens**:
+Connect an AI tool to the deployment with a personal token from **Connect → MCP tokens**:
 `claude mcp add --transport http lectern https://lectern.example.org/mcp/ --header "Authorization: Bearer lectern_pat_…"`.
 
 ## Upgrade
@@ -116,3 +116,25 @@ docker compose --env-file .env -f deploy/compose.yml start
 
 After restoring blobs and database from different moments, open the web app's **DNA → Check
 files** (or `POST /files/reconcile`) to find files that no longer match.
+
+## Shipping releases to a host (no git or build there)
+
+For a production host, build here and ship an image bundle, like a CI deploy:
+
+1. Once per host: create `/opt/lectern/{bin,releases,state,log}`, install
+   `deploy/bin/deploy-host` as `/opt/lectern/bin/deploy-prod`, and write `/opt/lectern/.env`
+   (mode 600) with `LECTERN_HOSTS`, `LECTERN_PORT` and `LECTERN_PUBLIC_URL`. The first deploy adds
+   a generated `LECTERN_SECRET_KEY`; back that file up.
+2. Each release, from a clean checkout: `scripts/ship.sh <ssh-host> prod`. It builds
+   `lectern:<git sha>`, sends `manifest.env + image.tar + compose.yml`, and the host loads it,
+   starts it, polls `/health` for 90 s, and rolls back to the previous release if it is unhealthy.
+   It keeps the newest three releases. `ssh <host> /opt/lectern/bin/deploy-prod status` shows what runs.
+
+## Connecting claude.ai
+
+lectern is its own OAuth server for MCP (decision D13). In claude.ai: Settings → Connectors → *Add
+custom connector*, URL `https://lectern.example.org/mcp`. claude.ai registers itself, sends the user
+to `/connect/authorize` to sign in and approve, and then calls `/mcp` with short-lived tokens. People
+see and end their connections under *Connect → Connections*; admins see every app and connection
+under *Connect → OAuth apps*. Other callbacks than claude.ai's and claude.com's can be allowed with
+`LECTERN_OAUTH_REDIRECTS` (comma-separated, exact URLs).

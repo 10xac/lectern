@@ -19,6 +19,7 @@ import hmac
 import logging
 import os
 import re
+import secrets
 import time
 from collections import defaultdict, deque
 from collections.abc import Mapping
@@ -31,10 +32,24 @@ from mcp.server.transport_security import TransportSecuritySettings
 from lectern.users import Users, csrf_for
 
 COOKIE = "lectern_session"
+VIEWER = "lectern_viewer"
+VIEWER_ID = re.compile(r"^[\w-]{16,64}$")
 ASK = re.compile(r"^/decks/\d+(/slides/\d+)?/ask$")
 UPLOAD = re.compile(r"^/(decks(/\d+/(files|attachments))?|slides|file/content)$")
 SECRET_NAME = re.compile(r"(_KEY|_TOKEN|_PASSWORD)$")
-API = ("/decks", "/jobs", "/files", "/file", "/slides", "/traces", "/agents", "/auth/", "/me/", "/admin/")
+API = (
+    "/decks",
+    "/jobs",
+    "/files",
+    "/file",
+    "/slides",
+    "/traces",
+    "/agents",
+    "/auth/",
+    "/me/",
+    "/admin/",
+    "/oauth/",
+)
 OPEN_API = ("/auth/login", "/auth/accept-invite", "/auth/me")
 
 
@@ -90,6 +105,8 @@ def install(app: FastAPI, users: Users, env: Mapping[str, str] | None = None) ->
         if via_spa:
             path = path[4:]
             request.scope["path"] = path
+        if path == "/mcp":  # serve the MCP endpoint at /mcp as well as /mcp/ (no redirect for POSTs)
+            path = request.scope["path"] = "/mcp/"
         refused = identify(request, users, path, method, login, via_spa)
         if refused is not None:
             return refused
@@ -100,7 +117,11 @@ def install(app: FastAPI, users: Users, env: Mapping[str, str] | None = None) ->
             return JSONResponse({"detail": "too many questions; wait a minute"}, status_code=429)
         if method in ("POST", "PUT") and UPLOAD.match(path) and not uploads.allow(ip):
             return JSONResponse({"detail": "too many uploads; wait a minute"}, status_code=429)
-        return await call_next(request)
+        request.state.viewer, fresh = viewer_for(request)
+        response = await call_next(request)
+        if fresh is not None:
+            response.set_cookie(VIEWER, fresh, max_age=365 * 86400, path="/", httponly=True, samesite="lax")
+        return response
 
 
 def identify(
@@ -110,9 +131,17 @@ def identify(
     required and missing. ``None`` means go on."""
     if path.startswith("/mcp"):
         bearer = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
-        request.state.user = users.by_token(bearer) if bearer else None
-        if login and request.state.user is None:
-            return JSONResponse({"detail": "a personal access token is required"}, status_code=401)
+        oauth = getattr(request.app.state, "oauth", None)
+        user = oauth.user_for(bearer) if bearer and oauth is not None else None
+        request.state.user = user or (users.by_token(bearer) if bearer else None)
+        if request.state.user is None and (login or bearer):
+            # The challenge tells an MCP client (claude.ai, Claude Code) where to start OAuth.
+            meta = f"{oauth.issuer}/.well-known/oauth-protected-resource/mcp" if oauth else ""
+            challenge = f'Bearer realm="lectern", resource_metadata="{meta}"'
+            if bearer:
+                challenge += ', error="invalid_token"'
+            return JSONResponse({"detail": "sign in to connect"}, status_code=401,
+                                headers={"WWW-Authenticate": challenge})  # fmt: skip
         return None
     session = request.cookies.get(COOKIE, "")
     request.state.user = users.by_session(session)
@@ -120,12 +149,50 @@ def identify(
     if not login or not is_api or path in OPEN_API:
         return None  # the web app's own files (it shows the login form) and the open auth routes
     if request.state.user is None:
+        if visitor_allowed(request, path, method):
+            return None  # a shared deck: no session, no CSRF (a visitor holds nothing to forge)
         return JSONResponse({"detail": "log in first"}, status_code=401)
     if method not in ("GET", "HEAD") and not hmac.compare_digest(
         request.headers.get("x-csrf-token", "").encode(), csrf_for(session).encode()
     ):
         return JSONResponse({"detail": "missing or wrong CSRF token"}, status_code=403)
     return None
+
+
+def visitor_allowed(request: Request, path: str, method: str) -> bool:
+    """A signed-out visitor may list shared decks and use a deck they can see (see ``sharing.py``)."""
+    sharing = getattr(request.app.state, "sharing", None)
+    if sharing is None:
+        return False
+    if path == "/decks" and method == "GET":
+        return True
+    rows = request.app.state.hub.jobs.rows
+
+    def job_deck(job_id: str) -> int | None:
+        job = rows.get(job_id)
+        return job.deck_id if job is not None else None
+
+    deck_id = sharing.deck_of(path, method, job_deck)
+    if deck_id is None:
+        return False
+    if path.endswith("/unlock"):
+        return bool(sharing.get(deck_id)[0] == "password")
+    return bool(sharing.can_view(deck_id, dict(request.cookies)))
+
+
+def viewer_for(request: Request) -> tuple[str, str | None]:
+    """``(viewer id, new cookie value or None)``: a user's own id, or an anonymous visitor's cookie.
+    With login off there is one local user, and everyone shares the threads as before."""
+    user = getattr(request.state, "user", None)
+    if user is not None:
+        return f"u{user.id}", None
+    if not getattr(request.app.state, "auth_on", False):
+        return "", None
+    given = request.cookies.get(VIEWER, "")
+    if VIEWER_ID.match(given):
+        return f"v{given}", None
+    fresh = secrets.token_urlsafe(18)
+    return f"v{fresh}", fresh
 
 
 class RedactSecrets(logging.Filter):

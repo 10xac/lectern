@@ -14,9 +14,10 @@ read all of it".
 
 ## Rules of thumb
 
-- **Stay in budget.** `scripts/loc_budget.py` fails a change that pushes the backend past 4,600
-  lines, the frontend past 1,800, any file past 300 or any function past 60. Prefer deleting code
-  to adding it.
+- **Stay in budget.** `scripts/loc_budget.py` fails a change that pushes the backend past 5,400
+  lines, the frontend past 3,900 (raised from 1,800 for the redesigned web app: router, app shell,
+  component library, present mode, sharing and admin pages), the tests past 3,600, any file past
+  300 or any function past 60. Prefer deleting code to adding it.
 - **Keep it deterministic.** No wall clock, randomness or network in the graph or in tests. The
   clock is injected; the `fake` provider is the only one tests use.
 - **Every query is scoped by deck.** Anything that reads slides, attachments or chunks takes a

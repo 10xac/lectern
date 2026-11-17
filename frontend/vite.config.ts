@@ -10,6 +10,14 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      // lucide-react marks its modules "use client" (for React Server Components); harmless here.
+      onwarn(warning, warn) {
+        if (warning.code !== 'MODULE_LEVEL_DIRECTIVE') warn(warning);
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['src/test/setup.ts'],

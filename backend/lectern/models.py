@@ -40,6 +40,7 @@ class Deck(BaseModel):
     agent: dict[str, Any] | None = None  # the deck's AgentSpec layer
     file_id: str | None = None  # an uploaded deck's original file
     folder: str | None = None  # a folder deck's path prefix
+    visibility: Literal["private", "public", "password"] = "private"  # who may see it (decision D14)
     outline: str = ""
     slides: list[Slide] = Field(default_factory=list)
 
@@ -180,6 +181,7 @@ class Job(BaseModel):
     notes: list[str] = Field(default_factory=list)  # e.g. "ran out of time"
     error: str | None = None
     feedback: int | None = None  # +1 or -1: a reader's verdict on the answer (feeds memory's r)
+    viewer: str = ""  # whose thread the question and answer belong to (a user, or an anonymous visitor)
 
 
 class JobEvent(BaseModel):

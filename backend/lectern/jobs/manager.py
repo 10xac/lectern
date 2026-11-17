@@ -74,7 +74,9 @@ class JobManager:
         """Mark jobs a previous process left running as ``failed: interrupted``."""
         return self.rows.mark_interrupted()
 
-    def submit(self, deck: Deck, n: int | None, question: str, override: RequestAgent | None = None) -> Job:
+    def submit(
+        self, deck: Deck, n: int | None, question: str, override: RequestAgent | None = None, viewer: str = ""
+    ) -> Job:
         """Queue a question on slide ``n`` (``None``: the deck) and start it. Needs a running loop.
 
         The agent is resolved now, so a refused override raises ``SpecError`` before any job exists.
@@ -82,9 +84,10 @@ class JobManager:
         agent = slide_agent(deck, n, override) if n is not None else deck_agent(deck, override)
         assert deck.id is not None
         self.budget.take()
-        history = [Turn(role=m.role, text=m.text) for m in self.rows.messages(deck.id, n)][-HISTORY_TURNS:]
-        job = self.rows.create(deck.id, n, question)
-        self.rows.add_message(deck.id, n, "user", question, job.id)
+        thread = self.rows.messages(deck.id, n, viewer)
+        history = [Turn(role=m.role, text=m.text) for m in thread][-HISTORY_TURNS:]
+        job = self.rows.create(deck.id, n, question, viewer)
+        self.rows.add_message(deck.id, n, "user", question, job.id, viewer=viewer)
         self.emit(job.id, "status", {"status": "queued"})
         task = asyncio.get_running_loop().create_task(self.run(job, deck, agent, history, override))
         self.tasks[job.id] = task
@@ -148,7 +151,7 @@ class JobManager:
             return
         finally:
             self.tasks.pop(job.id, None)
-        self.rows.add_message(job.deck_id, job.slide, "agent", answer.answer, job.id, answer)
+        self.rows.add_message(job.deck_id, job.slide, "agent", answer.answer, job.id, answer, job.viewer)
         self.end(job, status, answer, sources, notes)
 
     def end(

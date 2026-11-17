@@ -52,7 +52,7 @@ path. An uploaded `.pptx` or single-file HTML deck is kept whole at `uploads/<de
 - **REST:** `/decks/{d}/influences`, `/decks/{d}/files`, `/decks/{d}[/slides/{n}]/dna?format=graph|text`,
   `/slides?path=`, `/file…`, `/files…` (see the docstring in `dna/routes.py`).
 - **MCP:** `lectern mcp` (stdio) or `/mcp/` on the API. With login on, `/mcp` needs a personal
-  access token (**Account → MCP tokens**), and records are attributed to its owner. 24 tools: `list_decks`, `get_deck`, `get_slide`, `create_deck`, `put_slide`, `read_slide`,
+  access token (**Connect → MCP tokens**), and records are attributed to its owner. 24 tools: `list_decks`, `get_deck`, `get_slide`, `create_deck`, `put_slide`, `read_slide`,
   `update_slide_meta`, `put_file`, `read_file`, `list_files`, `move_file`, `delete_file`,
   `reconcile_files`, `relink_file`, `upload_file`, `add_influence`, `add_influences`,
   `update_influence`, `remove_influence`, `list_influences`, `add_reference`, `get_dna`, `ask` and

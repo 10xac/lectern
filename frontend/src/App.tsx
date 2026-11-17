@@ -1,68 +1,73 @@
-import { useEffect, useState } from 'react';
-import { api, setCsrf, type Me, type User } from './api';
-import { Account } from './components/Account';
-import { DeckList } from './components/DeckList';
-import { inviteToken, Login } from './components/Login';
-import { DeckViewer } from './components/DeckViewer';
-import { Upload } from './components/Upload';
+import type { ReactNode } from 'react';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { EmptyState } from './components/ui/EmptyState';
+import { ToastProvider } from './components/ui/Toast';
+import { AppShell, Page } from './layout/AppShell';
+import { AuthProvider, useAuth } from './lib/auth';
+import { AcceptInvitePage, inviteToken } from './pages/AcceptInvitePage';
+import { ConnectionsPage } from './pages/ConnectionsPage';
+import { ConsentPage } from './pages/ConsentPage';
+import { DeckPage } from './pages/DeckPage';
+import { DecksPage } from './pages/DecksPage';
+import { LoginPage } from './pages/LoginPage';
+import { ModelsPage } from './pages/ModelsPage';
+import { OAuthAppsPage } from './pages/OAuthAppsPage';
+import { PresentPage } from './pages/PresentPage';
+import { RequireAdmin } from './pages/RequireAdmin';
+import { TokensPage } from './pages/TokensPage';
+import { UsersPage } from './pages/UsersPage';
 
-/** Who is signed in. Login is required only when the server says so (``auth``). */
-function useMe() {
-  const [me, setMe] = useState<Me | null>(null);
-  useEffect(() => {
-    void api.me().then((m) => {
-      setCsrf(m.csrf);
-      setMe(m);
-    }, () => setMe({ auth: false, user: null, csrf: null }));
-  }, []);
-  const signIn = (user: User, csrf: string) => {
-    setCsrf(csrf);
-    setMe({ auth: true, user, csrf });
-  };
-  const signOut = () => void api.logout().then(() => setMe({ auth: true, user: null, csrf: null }));
-  return { me, signIn, signOut };
+/** Signed-in pages: with login on and nobody signed in, go to /login and come back afterwards. */
+function RequireUser() {
+  const { me } = useAuth();
+  const location = useLocation();
+  if (me.auth && !me.user) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
+  return <Outlet />;
 }
 
-/** Two screens: the deck list (with upload) and one open deck; plus sign-in and the account page. */
-export default function App() {
-  const [deckId, setDeckId] = useState<number | null>(null);
-  const [version, setVersion] = useState(0);
-  const [account, setAccount] = useState(false);
-  const { me, signIn, signOut } = useMe();
-  const invite = inviteToken(window.location.hash);
+/** Old invite links are /#invite=<token>: send them to the invite page, keeping the token in the fragment. */
+function LegacyInvite({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  if (location.pathname !== '/accept-invite' && inviteToken(location.hash)) return <Navigate to={`/accept-invite${location.hash}`} replace />;
+  return <>{children}</>;
+}
 
-  if (!me) return null;
-  if ((me.auth && !me.user) || invite) return <Login invite={invite} onIn={signIn} />;
+const admin = (page: ReactNode) => <RequireAdmin>{page}</RequireAdmin>;
+
+// Page paths must not be API paths: the server answers /decks, /files, /me/… and /admin/settings itself.
+export function AppRoutes() {
   return (
-    <div className="app">
-      <header className="topbar">
-        <button type="button" className="brand" onClick={() => setDeckId(null)}>
-          lectern
-        </button>
-        <span className="muted">every slide gets its own agent</span>
-        <span className="spacer" />
-        {me.user && <span className="muted">{me.user.email}</span>}
-        <button type="button" aria-pressed={account} onClick={() => setAccount(!account)}>Account</button>
-        {me.user && <button type="button" onClick={signOut}>Sign out</button>}
-      </header>
-      {account ? (
-        <Account user={me.user} />
-      ) : deckId === null ? (
-        <div className="home">
-          <Upload
-            label="Upload a deck (.html, .pptx, Slides .json)"
-            accept=".html,.htm,.pptx,.json"
-            upload={api.uploadDeck}
-            onDone={(deck) => {
-              setVersion((v) => v + 1);
-              setDeckId(deck.id);
-            }}
-          />
-          <DeckList version={version} onOpen={setDeckId} />
-        </div>
-      ) : (
-        <DeckViewer key={deckId} deckId={deckId} />
-      )}
-    </div>
+    <LegacyInvite>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/accept-invite" element={<AcceptInvitePage />} />
+        <Route path="/connect/authorize" element={<ConsentPage />} />
+        <Route path="/d/:deckId" element={<DeckPage shared />} />
+        <Route path="/d/:deckId/present" element={<PresentPage shared />} />
+        <Route element={<RequireUser />}>
+          <Route path="/deck/:deckId/present" element={<PresentPage />} />
+          <Route element={<AppShell />}>
+            <Route path="/" element={<DecksPage />} />
+            <Route path="/deck/:deckId" element={<DeckPage />} />
+            <Route path="/people/users" element={admin(<UsersPage />)} />
+            <Route path="/connect/tokens" element={<TokensPage />} />
+            <Route path="/connect/connections" element={<ConnectionsPage />} />
+            <Route path="/connect/apps" element={admin(<OAuthAppsPage />)} />
+            <Route path="/platform/models" element={admin(<ModelsPage />)} />
+            <Route path="*" element={<Page><EmptyState title="Page not found" description="Check the address, or pick a page on the left." /></Page>} />
+          </Route>
+        </Route>
+      </Routes>
+    </LegacyInvite>
+  );
+}
+
+export default function App() {
+  return (
+    <ToastProvider>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </ToastProvider>
   );
 }

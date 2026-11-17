@@ -1,23 +1,31 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, type Deck } from '../api';
+import { api, ApiError, type Deck, type Slide } from '../api';
 
-/** Load one deck; `reload` fetches it again (after an attachment upload). */
+/** Load one deck. `status` is the HTTP status of a failed load (401: not allowed to see it yet). */
 export function useDeck(deckId: number) {
   const [deck, setDeck] = useState<Deck | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; status: number } | null>(null);
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let live = true;
-    api
-      .getDeck(deckId)
-      .then((d) => live && setDeck(d))
-      .catch((e: Error) => live && setError(e.message));
+    api.getDeck(deckId).then(
+      (d) => live && (setDeck(d), setError(null)),
+      (e: Error) => live && setError({ message: e.message, status: e instanceof ApiError ? e.status : 0 }),
+    );
     return () => {
       live = false;
     };
   }, [deckId, version]);
 
   const reload = useCallback(() => setVersion((v) => v + 1), []);
-  return { deck, error, reload };
+  /** Edit a slide's title or notes on the server, then show the change without a reload. */
+  const editSlide = useCallback(
+    async (n: number, change: { title?: string; notes?: string }) => {
+      await api.editSlide(deckId, n, change);
+      setDeck((d) => d && { ...d, slides: d.slides.map((s): Slide => (s.n === n ? { ...s, ...change } : s)) });
+    },
+    [deckId],
+  );
+  return { deck, error, reload, editSlide, setDeck };
 }

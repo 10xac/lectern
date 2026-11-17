@@ -20,8 +20,8 @@ export interface LiveJob {
   lanes: Record<string, string>;
 }
 
-/** Every slide has its own thread: threads are keyed by deck id and slide number. */
-export const chatKey = (deckId: number, slide: number) => `${deckId}:${slide}`;
+/** Every slide has its own thread, and the deck one more: keyed by deck id and slide number (or "deck"). */
+export const chatKey = (deckId: number, slide: number | null) => `${deckId}:${slide ?? 'deck'}`;
 
 const toMessage = (m: ThreadMessage): Message =>
   m.answer
@@ -45,16 +45,16 @@ export function applyEvent(job: LiveJob, event: JobEvent): LiveJob {
 }
 
 /**
- * The thread for one slide, kept on the server. Asking starts a background job; its progress
+ * The thread for one slide (or, with `slide` null, the whole deck), kept on the server. Asking starts a background job; its progress
  * streams in as lanes, and when it is done the thread of the slide it was asked on is reloaded,
  * even if the user has moved to another slide meanwhile. Several jobs may run at once.
  */
-export function useSlideChat(deckId: number, slide: number) {
+export function useSlideChat(deckId: number, slide: number | null) {
   const [threads, setThreads] = useState<Record<string, Message[]>>({});
   const [live, setLive] = useState<Record<string, LiveJob[]>>({});
   const key = chatKey(deckId, slide);
 
-  const reload = useCallback(async (d: number, n: number) => {
+  const reload = useCallback(async (d: number, n: number | null) => {
     const k = chatKey(d, n);
     try {
       const rows = await api.messages(d, n);
@@ -81,6 +81,7 @@ export function useSlideChat(deckId: number, slide: number) {
             [k]: (prev[k] ?? []).flatMap((j) => (j.id === job.id ? (fn(j) ?? []) : [j])),
           }));
         setLive((prev) => ({ ...prev, [k]: [...(prev[k] ?? []), { id: job.id, question, status: job.status, lanes: {} }] }));
+        // `deckId` and `slide` are this call's: the answer goes to the thread it was asked on.
         api.watchJob(job.id, (event) => {
           update((j) => (event.kind === 'done' ? null : applyEvent(j, event)));
           if (event.kind === 'done') void reload(deckId, slide);

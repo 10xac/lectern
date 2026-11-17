@@ -15,15 +15,17 @@ from lectern.store import Store
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY, deck_id INTEGER NOT NULL, slide INTEGER, question TEXT NOT NULL,
-  status TEXT NOT NULL, result TEXT, error TEXT, feedback INTEGER);
+  status TEXT NOT NULL, result TEXT, error TEXT, feedback INTEGER, viewer TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS job_events (
   job_id TEXT NOT NULL, seq INTEGER NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL,
   PRIMARY KEY (job_id, seq));
 CREATE TABLE IF NOT EXISTS slide_messages (
   id INTEGER PRIMARY KEY, deck_id INTEGER NOT NULL, slide INTEGER, role TEXT NOT NULL,
-  text TEXT NOT NULL, job_id TEXT, answer TEXT);
+  text TEXT NOT NULL, job_id TEXT, answer TEXT, viewer TEXT NOT NULL DEFAULT '');
 """
-JOB_COLUMNS = ("id", "deck_id", "slide", "question", "status", "error", "feedback")
+# Added after the first v0.2 databases were made: each viewer has their own threads (decision D14).
+ADDED = [("jobs", "viewer"), ("slide_messages", "viewer")]
+JOB_COLUMNS = ("id", "deck_id", "slide", "question", "status", "error", "feedback", "viewer")
 MESSAGE_COLUMNS = ("id", "deck_id", "slide", "role", "text", "job_id")
 RUNNING = tuple(s for s in JobStatus.__args__ if s not in TERMINAL)  # type: ignore[attr-defined]
 
@@ -35,13 +37,16 @@ class JobRows:
         self.store = store
         with store.tx() as db:
             db.executescript(SCHEMA)
+            for table, column in ADDED:
+                if column not in {c["name"] for c in db.execute(f"PRAGMA table_info({table})")}:
+                    db.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
 
-    def create(self, deck_id: int, slide: int | None, question: str) -> Job:
-        job = Job(id=uuid.uuid4().hex[:12], deck_id=deck_id, slide=slide, question=question)
+    def create(self, deck_id: int, slide: int | None, question: str, viewer: str = "") -> Job:
+        job = Job(id=uuid.uuid4().hex[:12], deck_id=deck_id, slide=slide, question=question, viewer=viewer)
         with self.store.tx() as db:
             db.execute(
-                "INSERT INTO jobs (id, deck_id, slide, question, status) VALUES (?, ?, ?, ?, ?)",
-                (job.id, deck_id, slide, question, job.status),
+                "INSERT INTO jobs (id, deck_id, slide, question, status, viewer) VALUES (?, ?, ?, ?, ?, ?)",
+                (job.id, deck_id, slide, question, job.status, viewer),
             )
         return job
 
@@ -134,19 +139,21 @@ class JobRows:
         text: str,
         job_id: str | None,
         answer: Answer | None = None,
+        viewer: str = "",
     ) -> None:
         with self.store.tx() as db:
             db.execute(
-                "INSERT INTO slide_messages (deck_id, slide, role, text, job_id, answer)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
-                (deck_id, slide, role, text, job_id, answer.model_dump_json() if answer else None),
+                "INSERT INTO slide_messages (deck_id, slide, role, text, job_id, answer, viewer)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (deck_id, slide, role, text, job_id, answer.model_dump_json() if answer else None, viewer),
             )
 
-    def messages(self, deck_id: int, slide: int | None) -> list[Message]:
-        """One slide's thread (``slide=None``: the deck's thread), oldest first."""
+    def messages(self, deck_id: int, slide: int | None, viewer: str = "") -> list[Message]:
+        """One viewer's thread on a slide (``slide=None``: on the deck), oldest first."""
         with self.store.tx() as db:
             rows = db.execute(
-                "SELECT * FROM slide_messages WHERE deck_id = ? AND slide IS ? ORDER BY id", (deck_id, slide)
+                "SELECT * FROM slide_messages WHERE deck_id = ? AND slide IS ? AND viewer = ? ORDER BY id",
+                (deck_id, slide, viewer),
             ).fetchall()
         return [
             Message(

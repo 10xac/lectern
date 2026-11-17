@@ -25,9 +25,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Body, FastAPI, HTTPException, UploadFile
+from fastapi import Body, FastAPI, HTTPException, Request, Response, UploadFile
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from lectern import guard, mcp_server, service
 from lectern.agents import resolve
@@ -42,8 +43,11 @@ from lectern.jobs.manager import JobManager
 from lectern.jobs.routes import add_job_routes
 from lectern.jobs.system1 import resolve_system1
 from lectern.models import Attachment, Deck, Trace
+from lectern.oauth import OAuth
+from lectern.oauth_routes import add_oauth_routes
 from lectern.providers.base import Provider, get_provider, provider_for
 from lectern.settings import Settings
+from lectern.sharing import Sharing, add_sharing_routes
 from lectern.store import Store
 from lectern.users import Users
 
@@ -60,6 +64,12 @@ class DeckSummary(BaseModel):
     id: int
     title: str
     source: str
+    visibility: str = "private"
+
+
+class SlideEdit(BaseModel):
+    title: str | None = Field(default=None, max_length=300)
+    notes: str | None = Field(default=None, max_length=20_000)
 
 
 AgentLayer = Annotated[dict[str, Any] | None, Body()]
@@ -70,6 +80,19 @@ def read_upload(file: UploadFile) -> bytes:
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, f"files are limited to {MAX_UPLOAD_BYTES // (1024 * 1024)} MB")
     return data
+
+
+class WebApp(StaticFiles):
+    """The built web app. A page path the app routes itself (``/connect/authorize``, ``/admin/users``)
+    gets ``index.html``; a missing file with an extension stays a 404."""
+
+    async def get_response(self, path: str, scope: Any) -> Response:
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:  # StaticFiles raises its 404 rather than returning it
+            if exc.status_code != 404 or "." in path.rsplit("/", 1)[-1]:
+                raise
+            return await super().get_response("index.html", scope)
 
 
 def build_hub(
@@ -93,7 +116,9 @@ def build_hub(
     files = Files(db, blobs or (MemoryBlobs() if store else blobs_from_env()))
     dna = DNA(db, files)
     jobs = JobManager(db, model, per_instance, clock=clock or time.perf_counter, http=http, dna=dna)
-    return Hub(db, files, dna, jobs, Users(db), settings)
+    users = Users(db)
+    issuer = (os.environ.get("LECTERN_PUBLIC_URL") or "http://127.0.0.1:8000").rstrip("/")
+    return Hub(db, files, dna, jobs, users, settings, OAuth(db, users, issuer, f"{issuer}/mcp"))
 
 
 def create_app(*args: Any, **kwargs: Any) -> FastAPI:
@@ -110,10 +135,14 @@ def create_app(*args: Any, **kwargs: Any) -> FastAPI:
         async with mcp.session_manager.run():
             yield
 
-    app = FastAPI(title="lectern", version="0.2.1", lifespan=lifespan)
+    app = FastAPI(title="lectern", version="0.3.0", lifespan=lifespan)
     app.state.hub = hub
     guard.install(app, hub.users)
     add_auth_routes(app, hub.users, hub.settings, guard.auth_on(os.environ))
+    app.state.oauth = hub.oauth
+    app.state.sharing = Sharing(db)
+    add_sharing_routes(app, app.state.sharing)
+    add_oauth_routes(app, hub.oauth)
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -127,8 +156,17 @@ def create_app(*args: Any, **kwargs: Any) -> FastAPI:
         return DeckOut(**deck.model_dump())
 
     @app.get("/decks")
-    def list_decks() -> list[DeckSummary]:
-        return [DeckSummary(id=d.id or 0, title=d.title, source=d.source) for d in db.list_decks()]
+    def list_decks(request: Request) -> list[DeckSummary]:
+        decks = db.list_decks()
+        if getattr(request.state, "user", None) is None and app.state.auth_on:  # a visitor: shared decks only
+            decks = [d for d in decks if d.visibility != "private"]
+        return [
+            DeckSummary(id=d.id or 0, title=d.title, source=d.source, visibility=d.visibility) for d in decks
+        ]
+
+    @app.patch("/decks/{deck_id}/slides/{n}")
+    def edit_slide(deck_id: int, n: int, body: SlideEdit) -> dict[str, Any]:
+        return hub.edit_slide(deck_id, n, body.title, body.notes)
 
     @app.get("/decks/{deck_id}")
     def get_deck(deck_id: int) -> DeckOut:
@@ -151,7 +189,7 @@ def create_app(*args: Any, **kwargs: Any) -> FastAPI:
     add_dna_routes(app, hub, read_upload)
     static = os.environ.get("LECTERN_STATIC")  # the built web app, served by the same process
     if static and Path(static).is_dir():
-        app.mount("/", StaticFiles(directory=static, html=True), name="web")
+        app.mount("/", WebApp(directory=static, html=True), name="web")
     return app
 
 

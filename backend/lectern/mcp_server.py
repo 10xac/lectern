@@ -24,6 +24,7 @@ from lectern.dna import Author, Influence, InfluenceIn, InfluencePatch, Ref
 from lectern.files import MAX_BYTES, FileError, Mode, Reconciled, StoredFile
 from lectern.hub import Hub
 from lectern.models import IngestError, Job
+from lectern.sharing import Sharing
 
 INSTRUCTIONS = (
     "lectern keeps a deck's slides and their conceptual DNA: what shaped each slide (ideas, reasoning, "
@@ -33,12 +34,17 @@ INSTRUCTIONS = (
 )
 
 
+def person_of(ctx: Context | None) -> Any:
+    """The signed-in person behind an HTTP MCP call (its token's owner), or None (stdio, no login)."""
+    request = getattr(getattr(ctx, "request_context", None), "request", None)
+    return getattr(getattr(request, "state", None), "user", None)
+
+
 def by_ai(ctx: Context | None, data: InfluenceIn, model: str | None) -> InfluenceIn:
     """Fill in who wrote it: the MCP client's name, and the model it says it is."""
     info = getattr(getattr(getattr(ctx, "session", None), "client_params", None), "client_info", None)
     client = getattr(info, "name", None) or data.author.name
-    request = getattr(getattr(ctx, "request_context", None), "request", None)
-    person = getattr(getattr(request, "state", None), "user", None)  # the owner of the access token
+    person = person_of(ctx)  # the owner of the access token
     name = f"{client} for {person.email}" if person is not None else client
     author = Author(type="ai", name=name[:100], tool=client, model=model or data.author.model)
     return data.model_copy(update={"author": author})
@@ -178,9 +184,25 @@ class Tools:
         """The DNA of a slide or the whole deck: an ordered text trace, or the graph (nodes, edges)."""
         return self.hub.get_dna(deck_id, slide, format)
 
-    async def ask(self, deck_id: int, question: str, slide: int | None = None) -> dict[str, str]:
+    async def ask(
+        self, deck_id: int, question: str, slide: int | None = None, ctx: Context | None = None
+    ) -> dict[str, str]:
         """Ask a slide (or, without slide, the deck). It runs in the background: poll get_job."""
-        return {"job_id": self.hub.ask(deck_id, slide, question).id}
+        person = person_of(ctx)
+        viewer = f"u{person.id}" if person is not None else "mcp"
+        return {"job_id": self.hub.ask(deck_id, slide, question, viewer).id}
+
+    def edit_slide(
+        self, deck_id: int, n: int, title: str | None = None, notes: str | None = None
+    ) -> dict[str, Any]:
+        """Change a slide's title or presenter notes (any deck; folder decks keep them in file metadata)."""
+        return self.hub.edit_slide(deck_id, n, title, notes)
+
+    def share_deck(self, deck_id: int, visibility: str, password: str | None = None) -> dict[str, Any]:
+        """Who may see a deck: private (signed-in users), public (anyone with the link) or password."""
+        if visibility not in ("private", "public", "password"):
+            raise ValueError("visibility is private, public or password")
+        return Sharing(self.hub.store).set(deck_id, visibility, password)  # type: ignore[arg-type]
 
     def get_job(self, job_id: str) -> Job:
         """A job's status, answer (with citations) and per-source confidence."""

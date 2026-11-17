@@ -1,0 +1,63 @@
+/* lectern's design tokens and base styles. Colours are "r g b" channels for Tailwind's alpha modifiers. */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Indigo, not red: red is already the danger colour, and a primary button should not read as one. */
+  --brand: 79 70 229;
+  --brand-strong: 67 56 202;
+  --brand-hover: 99 102 241;
+  --brand-soft: 238 242 255;
+  --success: 82 196 26;
+  --success-soft: 246 255 237;
+  --success-line: 183 235 143;
+  --warning: 250 173 20;
+  --warning-soft: 255 251 230;
+  --warning-line: 255 229 143;
+  --warning-ink: 135 77 0;
+  --info: 22 119 255;
+  --info-soft: 230 244 255;
+  --info-line: 145 202 255;
+  --danger: 255 77 79;
+  --danger-soft: 255 241 240;
+  --danger-line: 255 204 199;
+  --danger-ink: 207 19 34;
+  --tag-pink-bg: 255 240 246;
+  --tag-pink-fg: 235 47 150;
+  --tag-pink-line: 255 173 210;
+  --tag-cyan-bg: 230 255 251;
+  --tag-cyan-fg: 19 194 194;
+  --tag-cyan-line: 135 232 222;
+  --tag-orange-bg: 255 247 230;
+  --tag-orange-fg: 250 140 22;
+  --tag-orange-line: 255 213 145;
+  --tag-teal-bg: 220 244 244;
+  --tag-teal-fg: 0 128 128;
+  --tag-teal-line: 100 201 201;
+  --tag-neutral-bg: 245 245 245;
+  --tag-neutral-fg: 89 89 89;
+  --tag-neutral-line: 217 217 217;
+}
+
+@layer base {
+  html {
+    @apply bg-surface-muted font-sans text-sm text-ink antialiased;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display;
+  }
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-brand/60;
+  }
+  /* Comfortable touch targets on phones and tablets. */
+  @media (pointer: coarse) {
+    button, [role='tab'], select, input:not([type='checkbox']):not([type='radio']) {
+      min-height: 44px;
+    }
+  }
+}

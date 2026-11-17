@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# deploy-host: install a lectern release bundle on this host, check its health, roll back on failure.
+#
+# Installed as /opt/lectern/bin/deploy-<env> (deploy-prod, deploy-dev); the name picks the compose
+# project, lectern-<env>. Verbs (first argument, or SSH_ORIGINAL_COMMAND for a pinned deploy key):
+#   deploy (default)  read a gzip'd tar bundle on stdin and deploy it
+#   status            print the current and previous release and the container state
+# The bundle holds exactly: manifest.env (LECTERN_TAG=<git sha>), image.tar (`docker save
+# lectern:<tag>`) and compose.yml (deploy/compose.yml at that commit).
+#
+# Flow: validate → docker load → up → health poll (90 s) → mark current. If health fails, the
+# previous release is started again and the script exits 1. The newest 3 releases are kept.
+# Configuration lives in $LECTERN_HOME/.env (mode 600). On the first deploy, LECTERN_SECRET_KEY
+# (which encrypts the API keys stored in lectern) is generated here, so it never leaves the host.
+set -euo pipefail
+
+LECTERN_HOME="${LECTERN_HOME:-/opt/lectern}"
+ENV_FILE="${LECTERN_HOME}/.env"
+STATE="${LECTERN_HOME}/state"
+RELEASES="${LECTERN_HOME}/releases"
+LOG="${LECTERN_HOME}/log/deploy.log"
+NAME="$(basename "$0")"
+ENVIRONMENT="${NAME#deploy-}"
+[[ "$ENVIRONMENT" == "$NAME" || -z "$ENVIRONMENT" ]] && ENVIRONMENT="dev"
+PROJECT="lectern-${ENVIRONMENT}"
+VERB="${1:-${SSH_ORIGINAL_COMMAND:-deploy}}"
+
+log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" | tee -a "$LOG" >&2; }
+fail() { log "error: $*"; exit 1; }
+
+compose() { # compose <tag> <args…>: run docker compose for one release
+  local tag="$1"; shift
+  LECTERN_ENV_FILE="$ENV_FILE" LECTERN_IMAGE="lectern:${tag}" docker compose -p "$PROJECT" --env-file "$ENV_FILE" \
+    -f "${RELEASES}/${tag}/compose.yml" "$@"
+}
+
+healthy() { # healthy <seconds>: poll /health on the published port
+  local port deadline
+  port="$(grep -E '^LECTERN_PORT=' "$ENV_FILE" | cut -d= -f2)"
+  deadline=$((SECONDS + $1))
+  while ((SECONDS < deadline)); do
+    curl -fsS --max-time 3 "http://127.0.0.1:${port:-8790}/health" >/dev/null 2>&1 && return 0
+    sleep 3
+  done
+  return 1
+}
+
+ensure_env() {
+  mkdir -p "$STATE" "$RELEASES" "$(dirname "$LOG")"
+  [[ -f "$ENV_FILE" ]] || fail "$ENV_FILE is missing: create it with LECTERN_HOSTS, LECTERN_PORT, LECTERN_PUBLIC_URL"
+  chmod 600 "$ENV_FILE"
+  if ! grep -qE '^LECTERN_SECRET_KEY=.+' "$ENV_FILE"; then
+    key="$(python3 -c 'import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
+    printf 'LECTERN_SECRET_KEY=%s\n' "$key" >>"$ENV_FILE"
+    log "generated LECTERN_SECRET_KEY in $ENV_FILE (back it up: stored API keys need it)"
+  fi
+  for name in LECTERN_HOSTS LECTERN_PORT LECTERN_PUBLIC_URL; do
+    grep -qE "^${name}=.+" "$ENV_FILE" || fail "$ENV_FILE needs ${name}"
+  done
+}
+
+status() {
+  echo "project:  $PROJECT"
+  echo "current:  $(cat "$STATE/current" 2>/dev/null || echo none)"
+  echo "previous: $(cat "$STATE/previous" 2>/dev/null || echo none)"
+  docker compose -p "$PROJECT" ps --format '{{.Name}} {{.Image}} {{.Status}}' 2>/dev/null || true
+}
+
+deploy() {
+  ensure_env
+  work="$(mktemp -d)"
+  trap 'rm -rf "$work"' EXIT
+  tar -xzf - -C "$work" || fail "the bundle is not a gzip'd tar"
+  for f in manifest.env image.tar compose.yml; do [[ -f "$work/$f" ]] || fail "bundle lacks $f"; done
+  tag="$(grep -E '^LECTERN_TAG=[0-9a-f]{7,40}$' "$work/manifest.env" | cut -d= -f2)"
+  [[ -n "$tag" ]] || fail "manifest.env needs LECTERN_TAG=<git sha>"
+  log "deploying $PROJECT $tag"
+  docker load -i "$work/image.tar" >/dev/null
+  mkdir -p "$RELEASES/$tag"
+  cp "$work/compose.yml" "$work/manifest.env" "$RELEASES/$tag/"
+  previous="$(cat "$STATE/current" 2>/dev/null || true)"
+  compose "$tag" up -d --no-build --remove-orphans
+  if ! healthy 90; then
+    log "health check failed for $tag"
+    if [[ -n "$previous" && "$previous" != "$tag" && -d "$RELEASES/$previous" ]]; then
+      compose "$previous" up -d --no-build --remove-orphans && log "rolled back to $previous"
+    fi
+    exit 1
+  fi
+  if [[ "$previous" != "$tag" ]]; then
+    [[ -n "$previous" ]] && echo "$previous" >"$STATE/previous"
+    echo "$tag" >"$STATE/current"
+  fi
+  log "deployed $PROJECT $tag"
+  keep="$(printf '%s\n%s\n' "$tag" "$previous")"
+  ls -1t "$RELEASES" | tail -n +4 | while read -r old; do
+    grep -qx "$old" <<<"$keep" || { rm -rf "${RELEASES:?}/$old"; docker image rm "lectern:$old" >/dev/null 2>&1 || true; }
+  done
+}
+
+case "$VERB" in
+  deploy) deploy ;;
+  status) status ;;
+  *) fail "unknown verb: $VERB (deploy | status)" ;;
+esac

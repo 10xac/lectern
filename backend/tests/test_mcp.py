@@ -42,6 +42,8 @@ EXPECTED = {
     "list_files",
     "move_file",
     "delete_file",
+    "edit_slide",
+    "share_deck",
     "reconcile_files",
     "relink_file",
 }

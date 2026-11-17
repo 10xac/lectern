@@ -24,7 +24,7 @@ def parse(data: bytes, name: str = "deck.<ext>") -> Deck:
 - Add the source name to `SourceKind` in `models.py`.
 - Add the parser to `ADAPTERS` in `ingest/__init__.py`.
 - Teach `ingest/detect.py` to recognise the format from its name and first bytes.
-- Add a label for it in `frontend/src/components/DeckList.tsx` and the `accept` list in `App.tsx`.
+- Add a label for it in `SOURCE` in `frontend/src/pages/DecksPage.tsx` and to the upload button's `accept` list there.
 
 ## 3. Test it
 

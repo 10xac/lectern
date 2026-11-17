@@ -85,6 +85,10 @@ def test_serves_the_built_web_app(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     with app_client(monkeypatch, LECTERN_STATIC=str(tmp_path)) as client:
         assert "<title>lectern</title>" in client.get("/").text
         assert client.get("/api/decks").json() == [] and client.get("/health").status_code == 200
+        # Pages the app routes itself get index.html; a missing asset stays a 404.
+        assert "<title>lectern</title>" in client.get("/connect/authorize?txn=x").text
+        assert "<title>lectern</title>" in client.get("/deck/1/present").text
+        assert client.get("/assets/missing.js").status_code == 404
 
 
 def test_mcp_accepts_the_public_host_name(monkeypatch: pytest.MonkeyPatch) -> None:

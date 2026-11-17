@@ -8,9 +8,9 @@ services:
       context: ..
       args:
         EXTRAS: ${LECTERN_EXTRAS:-}
-    image: lectern:local
+    image: ${LECTERN_IMAGE:-lectern:local}   # deploy-host sets lectern:<git sha>
     restart: unless-stopped
-    env_file: ../.env
+    env_file: ${LECTERN_ENV_FILE:-../.env}
     environment:
       LECTERN_PUBLIC: "1"           # login required: user accounts, and personal tokens for /mcp
       LECTERN_TRUST_PROXY: "1"      # client IPs come from nginx's X-Real-IP

@@ -45,6 +45,8 @@ ADDED_COLUMNS = [
     ("decks", "file_id", "TEXT"),
     ("decks", "folder", "TEXT"),
     ("slides", "file_id", "TEXT"),
+    ("decks", "visibility", "TEXT"),  # private (NULL) | public | password (decision D14)
+    ("decks", "share_hash", "TEXT"),
 ]
 
 
@@ -112,6 +114,15 @@ class Store:
             ],
         )
 
+    def edit_slide(self, deck_id: int, n: int, title: str | None, notes: str | None) -> None:
+        """Change a slide's title or presenter notes (decks that are not folder decks)."""
+        with self.tx() as db:
+            db.execute(
+                "UPDATE slides SET title = COALESCE(?, title), notes = COALESCE(?, notes)"
+                " WHERE deck_id = ? AND n = ?",
+                (title, notes, deck_id, n),
+            )
+
     def replace_slides(self, deck_id: int, slides: Sequence[Slide], outline: str) -> None:
         """A folder deck's slides, rebuilt from its files after any change."""
         with self.tx() as db:
@@ -143,6 +154,7 @@ class Store:
             agent=loads(row["agent"]),
             file_id=row["file_id"],
             folder=row["folder"],
+            visibility=row["visibility"] or "private",
             outline=row["outline"],
             slides=[
                 Slide(
@@ -173,7 +185,16 @@ class Store:
         """Every deck, newest first, without slides (the deck list does not need them)."""
         with self.tx() as db:
             rows = db.execute("SELECT * FROM decks ORDER BY id DESC").fetchall()
-        return [Deck(id=r["id"], title=r["title"], source=r["source"], outline=r["outline"]) for r in rows]
+        return [
+            Deck(
+                id=r["id"],
+                title=r["title"],
+                source=r["source"],
+                outline=r["outline"],
+                visibility=r["visibility"] or "private",
+            )
+            for r in rows
+        ]
 
     # attachments ---------------------------------------------------------------------------
 

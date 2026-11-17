@@ -73,6 +73,25 @@ The demo runs offline. With keys in `.env` (`LECTERN_PROVIDER`, `LECTERN_API_KEY
 `LECTERN_MODEL` for a real model, `EXA_API_KEY` for the web, `OPENROUTER_API_KEY` for jev triage)
 the same command uses them.
 
+## Present and share
+
+Open a deck and press **Present** for a full-screen talk (←/→, Esc; the audience can press **Ask**
+to question the slide on screen). **Share** makes a deck private (signed-in people only), public
+(anyone with the `/d/<id>` link can view it, ask its agents and read its DNA) or public behind a
+password. Each visitor's chat is their own, and their questions count against the server's rate
+limits and daily budget.
+
+## Connect Claude (MCP)
+
+- **claude.ai:** Settings → Connectors → *Add custom connector*, URL `https://<your host>/mcp`.
+  Claude sends you to lectern to sign in and approve; nothing to paste.
+- **Claude Code:** create a token under *Connect → MCP tokens*, then
+  `claude mcp add --transport http lectern https://<your host>/mcp/ --header "Authorization: Bearer <token>"`,
+  or run it locally with `claude mcp add lectern -- uv run --directory "$PWD" lectern mcp`.
+
+Claude can then list and read decks, put and edit slides (`put_slide`, `edit_slide`), log the DNA
+(`add_influence(s)`), share a deck and ask questions. See `docs/dna.md`.
+
 ## How it works
 
 ```
@@ -94,7 +113,7 @@ ask    ─▶ answer graph: gate → route → assemble → answer → cite → 
 | Jobs: triage, parallel researchers, fusion, decision | `backend/lectern/jobs/` (`docs/confidence.md`) |
 | The DNA, the file registry, folder decks | `backend/lectern/dna/`, `files.py`, `blobs.py`, `folders.py` (`docs/dna.md`) |
 | One facade for REST, MCP and CLI; the MCP server | `backend/lectern/hub.py`, `backend/lectern/mcp_server.py` |
-| Web app (React + Vite + TypeScript, plain CSS) | `frontend/src/` |
+| Web app (React + Vite + TypeScript, Tailwind, react-router) | `frontend/src/` |
 
 ## How to read the graph
 
@@ -132,8 +151,9 @@ Jobs, triage and fusion are tested with fake sources and a fake HTTP port (Exa, 
 `fetch_url` are never called), the MCP tools with the SDK's in-memory client, and the DNA graph
 against a golden file.
 
-**Size budget** (non-blank, non-comment lines): backend ≤ 4,600, frontend ≤ 1,800, tests ≤
-2,800; no file over 300 lines and no function over 60.
+**Size budget** (non-blank, non-comment lines): backend ≤ 5,400, frontend ≤ 3,900 (raised from
+1,800 for the redesigned web app: router, app shell, component library, present mode, sharing and
+admin pages), tests ≤ 3,600; no file over 300 lines and no function over 60.
 
 ## More
 

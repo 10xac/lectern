@@ -5,8 +5,8 @@ and a web app shows both. One SQLite file holds everything.
 
 ```
           ┌──────────── frontend (React) ────────────┐
-          │ DeckList · Upload · DeckViewer            │
-          │   SlideRail │ SlidePane+NotesToggle │ SlideChat+CitationChip │ TracePanel
+          │ AppShell (sider) · pages/ · deck/          │
+          │   SlideRail │ SlideFrame+Notes │ Ask · Ask the deck · DNA │ drawers
           └──────────────────┬───────────────────────┘
                              │ /api (Vite proxy in dev)
           ┌──────────────────▼───────────────────────┐
@@ -49,12 +49,24 @@ behind a lock (FastAPI runs routes on a thread pool). All content reads take a `
 
 ## Frontend
 
-- `App.tsx` switches between the deck list and one open deck.
-- `DeckViewer` owns the current slide number, the trace drawer and the highlighted attachment.
-- `SlidePane` renders HTML slides in `<iframe sandbox="allow-scripts">`. Without
-  `allow-same-origin`, slide scripts cannot read the app's page, storage or API.
-- `useSlideChat` keeps one conversation per `deckId:slide` key, so each slide has its own chat.
-- `CitationChip` turns a block id into a label and jumps to its slide or attachment.
+React with react-router and Tailwind. `api.ts` is the one typed client (shapes in `types.ts`); every
+write sends the session's CSRF token.
+
+- `App.tsx` holds the routes. Page paths never reuse an API path (the server answers `/decks`,
+  `/files`, `/me/…`, `/admin/settings` itself), so the deck viewer is `/deck/:id` and a shared link
+  is `/d/:id`. The server serves `index.html` for any other path without a file extension.
+- `layout/` is the signed-in frame (top bar, collapsible sider, account menu) and the sign-in frame.
+- `components/ui/` is the design system: `styles.ts` holds the class recipes (buttons, inputs,
+  badges); Button, Card, StatusBadge, DataTable, Drawer/Modal (focus trap, Esc, scroll lock),
+  ConfirmButton, Toast, PageHeader, SectionTabs, CreatePanel. Colours are CSS variables in
+  `index.css`, named in `tailwind.config.js`.
+- `deck/DeckViewer` shows the slide rail (multi-select), the slide with its notes, and a panel with
+  Ask (this slide), Ask the deck and DNA. `useDeckView` keeps the current slide in `?slide=`.
+- `SlideFrame` renders HTML slides at 960×540 in `<iframe sandbox="allow-scripts">`, scaled to fit.
+  Without `allow-same-origin`, slide scripts cannot read the app's page, storage or API.
+- `useSlideChat` keeps one conversation per `deckId:slide` key (and one for the deck), so each slide
+  has its own chat; an answer is posted to the slide it was asked on.
+- `pages/PresentPage` is present mode, with an Ask drawer for the audience.
 
 ## Limits
 

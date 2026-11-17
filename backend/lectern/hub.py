@@ -14,6 +14,7 @@ from lectern.files import FileError, Files, Mode, Reconciled, StoredFile
 from lectern.ingest.html_artifact import element_ids
 from lectern.jobs.manager import JobManager
 from lectern.models import Deck, Job
+from lectern.oauth import OAuth
 from lectern.settings import Settings
 from lectern.store import Store
 from lectern.users import Users
@@ -21,10 +22,17 @@ from lectern.users import Users
 
 class Hub:
     def __init__(
-        self, store: Store, files: Files, dna: DNA, jobs: JobManager, users: Users, settings: Settings
+        self,
+        store: Store,
+        files: Files,
+        dna: DNA,
+        jobs: JobManager,
+        users: Users,
+        settings: Settings,
+        oauth: OAuth,
     ) -> None:
         self.store, self.files, self.dna, self.jobs = store, files, dna, jobs
-        self.users, self.settings = users, settings
+        self.users, self.settings, self.oauth = users, settings, oauth
 
     # decks and slides ---------------------------------------------------------------------------
 
@@ -70,6 +78,18 @@ class Hub:
         deck, file = folders.put_slide(self.store, self.files, path, content, mode, meta)
         slide = next(s for s in deck.slides if s.file_id == file.id)
         return {"deck_id": deck.id, "slide": self.slide_info(deck, slide.n), "file": file.model_dump()}
+
+    def edit_slide(self, deck_id: int, n: int, title: str | None, notes: str | None) -> dict[str, Any]:
+        """A slide's title or presenter notes. A folder deck's slide keeps them in its file's metadata."""
+        deck = self.deck(deck_id, n)
+        slide = deck.slide(n)
+        assert slide is not None
+        if slide.file_id is not None:
+            patch = {k: v for k, v in (("title", title), ("notes", notes)) if v is not None}
+            self.update_meta(self.files.by_id(slide.file_id).path, patch)
+        else:
+            self.store.edit_slide(deck_id, n, title, notes)
+        return self.slide_info(self.deck(deck_id), n)
 
     def read_slide(self, path: str) -> dict[str, Any]:
         """A slide file's content, metadata and DNA trace (a folder deck's slide)."""
@@ -149,9 +169,9 @@ class Hub:
 
     # jobs ---------------------------------------------------------------------------------------
 
-    def ask(self, deck_id: int, n: int | None, question: str) -> Job:
+    def ask(self, deck_id: int, n: int | None, question: str, viewer: str = "") -> Job:
         """Start a job (needs a running event loop); poll ``get_job`` or stream its events."""
-        return self.jobs.submit(self.deck(deck_id, n), n, question)
+        return self.jobs.submit(self.deck(deck_id, n), n, question, viewer=viewer)
 
     def get_job(self, job_id: str) -> Job:
         job = self.jobs.rows.get(job_id)

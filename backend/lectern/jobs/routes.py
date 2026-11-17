@@ -16,7 +16,7 @@ import json
 from collections.abc import AsyncIterator, Callable
 from typing import Any, Literal
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -46,17 +46,17 @@ class AskBody(BaseModel):
 
 
 def add_job_routes(app: FastAPI, jobs: JobManager, load: Callable[[int, int | None], Deck]) -> None:
-    async def start(deck_id: int, n: int | None, body: AskBody, wait: bool) -> Job:
-        job = jobs.submit(load(deck_id, n), n, body.question.strip(), body.agent)
+    async def start(deck_id: int, n: int | None, body: AskBody, wait: bool, request: Request) -> Job:
+        job = jobs.submit(load(deck_id, n), n, body.question.strip(), body.agent, request.state.viewer)
         return (await jobs.wait(job.id) or job) if wait else job
 
     @app.post("/decks/{deck_id}/slides/{n}/ask", status_code=202)
-    async def ask_slide(deck_id: int, n: int, body: AskBody, wait: bool = False) -> Job:
-        return await start(deck_id, n, body, wait)
+    async def ask_slide(deck_id: int, n: int, body: AskBody, request: Request, wait: bool = False) -> Job:
+        return await start(deck_id, n, body, wait, request)
 
     @app.post("/decks/{deck_id}/ask", status_code=202)
-    async def ask_deck(deck_id: int, body: AskBody, wait: bool = False) -> Job:
-        return await start(deck_id, None, body, wait)
+    async def ask_deck(deck_id: int, body: AskBody, request: Request, wait: bool = False) -> Job:
+        return await start(deck_id, None, body, wait, request)
 
     def get(job_id: str) -> Job:
         job = jobs.rows.get(job_id)
@@ -97,11 +97,11 @@ def add_job_routes(app: FastAPI, jobs: JobManager, load: Callable[[int, int | No
         return StreamingResponse(sse(), media_type="text/event-stream")
 
     @app.get("/decks/{deck_id}/slides/{n}/messages")
-    def slide_messages(deck_id: int, n: int) -> list[Message]:
+    def slide_messages(deck_id: int, n: int, request: Request) -> list[Message]:
         load(deck_id, n)
-        return jobs.rows.messages(deck_id, n)
+        return jobs.rows.messages(deck_id, n, request.state.viewer)
 
     @app.get("/decks/{deck_id}/messages")
-    def deck_messages(deck_id: int) -> list[Message]:
+    def deck_messages(deck_id: int, request: Request) -> list[Message]:
         load(deck_id, None)
-        return jobs.rows.messages(deck_id, None)
+        return jobs.rows.messages(deck_id, None, request.state.viewer)
