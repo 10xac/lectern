@@ -22,7 +22,9 @@ ARG EXTRAS=""
 RUN uv sync --frozen --no-dev --no-editable ${EXTRAS:+--extra $EXTRAS}
 COPY --from=web /web/dist /app/static
 
-RUN useradd --system --uid 10001 --home /data lectern && mkdir -p /data && chown lectern /data
+# /data/blobs must exist (owned by lectern) in the image: Docker copies a mount point's owner into a
+# new named volume, so a missing folder would become a root-owned volume the server cannot write.
+RUN useradd --system --uid 10001 --home /data lectern && mkdir -p /data/blobs && chown -R lectern /data
 USER lectern
 ENV PATH=/app/.venv/bin:$PATH \
     LECTERN_STATIC=/app/static \

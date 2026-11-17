@@ -34,7 +34,7 @@ export function DeckPage({ shared = false }: { shared?: boolean }) {
       {({ deck, editSlide, reload, setDeck }) => {
         const viewer = (
           <DeckViewer deck={deck} base={shared ? '/d' : '/deck'} canEdit={canEdit} admin={isAdmin} author={me.user?.email}
-            editSlide={editSlide} reload={reload} onVisibility={(visibility) => setDeck({ ...deck, visibility })} />
+            editSlide={editSlide} reload={reload} setDeck={setDeck} onVisibility={(visibility) => setDeck({ ...deck, visibility })} />
         );
         return shared ? <PublicFrame deckId={deck.id}>{viewer}</PublicFrame> : viewer;
       }}

@@ -9,6 +9,7 @@ import { UploadButton } from '../components/UploadButton';
 import { VisibilityBadge } from '../deck/VisibilityBadge';
 import { Page } from '../layout/AppShell';
 import { useLoad } from '../lib/useLoad';
+import { DeckMenu } from './DeckMenu';
 
 const SOURCE = {
   html: { label: 'HTML', tone: 'cyan' },
@@ -16,10 +17,10 @@ const SOURCE = {
   gslides: { label: 'Google Slides', tone: 'teal' },
 } as const;
 
-function DeckCard({ deck }: { deck: DeckSummary }) {
+function DeckCard({ deck, onChanged }: { deck: DeckSummary; onChanged: () => void }) {
   const source = SOURCE[deck.source] ?? SOURCE.html;
   return (
-    <li>
+    <li className="relative">
       <Link to={`/deck/${deck.id}`} className="group block h-full rounded-lg border border-line-soft bg-surface transition-shadow hover:shadow-card focus-visible:shadow-card">
         <div className="flex aspect-video items-center justify-center rounded-t-lg bg-gradient-to-br from-brand-soft to-surface-sunken">
           <Presentation className="h-10 w-10 text-brand/60 transition-transform group-hover:scale-110" aria-hidden />
@@ -32,13 +33,15 @@ function DeckCard({ deck }: { deck: DeckSummary }) {
           </div>
         </div>
       </Link>
+      {/* A sibling of the link, not inside it: a button inside a link is invalid and would navigate. */}
+      <DeckMenu deck={deck} onChanged={onChanged} className="absolute right-2 top-2 bg-surface/80" />
     </li>
   );
 }
 
 /** Every deck as a card, with the upload button. */
 export function DecksPage() {
-  const { data, error } = useLoad(api.listDecks);
+  const { data, error, reload } = useLoad(api.listDecks);
   const navigate = useNavigate();
   const upload = (
     <UploadButton label="Upload deck" variant="primary" accept=".html,.htm,.pptx,.json" upload={api.uploadDeck} onDone={(d) => navigate(`/deck/${d.id}`)} />
@@ -51,7 +54,7 @@ export function DecksPage() {
       {data?.length === 0 && <EmptyState title="No decks yet" description="Upload one, or run make seed on the server." action={upload} />}
       {data && data.length > 0 && (
         <ul aria-label="Decks" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-          {data.map((d) => <DeckCard key={d.id} deck={d} />)}
+          {data.map((d) => <DeckCard key={d.id} deck={d} onChanged={reload} />)}
         </ul>
       )}
     </Page>

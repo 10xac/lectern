@@ -10,6 +10,16 @@ export interface Slide {
   html: string | null;
   persona: string | null;
   file_id?: string | null;
+  /** Where the slide came from in the uploaded file (e.g. a reveal.js section id), if anywhere. */
+  ref?: string | null;
+}
+
+/** The fields of a slide people can edit (PATCH) or start a new slide with (POST). */
+export interface SlideChange {
+  title?: string;
+  body?: string;
+  notes?: string;
+  html?: string;
 }
 
 export interface Attachment {
@@ -30,6 +40,10 @@ export interface DeckSummary {
 
 export interface Deck extends DeckSummary {
   outline: string;
+  /** The deck's own HTML document with a `<!--lectern-slide-->` marker where each slide goes. */
+  shell?: string | null;
+  /** The uploaded original, if the deck came from a file (null when built slide by slide). */
+  file_id?: string | null;
   slides: Slide[];
   attachments: Attachment[];
 }

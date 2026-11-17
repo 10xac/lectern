@@ -13,6 +13,16 @@ const PICK =
   "<script>document.addEventListener('click',function(e){var el=e.target.closest('[data-lectern-id]');" +
   "if(el){e.preventDefault();parent.postMessage({lecternPick:el.getAttribute('data-lectern-id')},'*');}},true);</script>";
 
+/** Where a slide goes in its deck's shell document. */
+const MARKER = '<!--lectern-slide-->';
+
+/** The slide's document: inside the deck's shell (its head, fonts, scripts, wrappers) when it has one. */
+export function slideDoc(html: string, shell?: string | null, picking = false) {
+  // A function replacer, so `$&` or `$1` in the slide's html stay literal.
+  const doc = shell?.includes(MARKER) ? shell.replace(MARKER, () => html) : html;
+  return picking ? doc + PICK : doc;
+}
+
 function useScale() {
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -28,6 +38,8 @@ function useScale() {
 
 interface Props {
   slide: Slide;
+  /** The deck's shell document (Deck.shell), if any. */
+  shell?: string | null;
   picking?: boolean;
   /** A rail thumbnail: not focusable, hidden from screen readers. */
   thumb?: boolean;
@@ -38,7 +50,7 @@ interface Props {
  * One slide at 16:9. HTML slides render in a sandboxed iframe: scripts may run, but without
  * allow-same-origin they cannot reach this page, its cookies or the API. Other slides are text cards.
  */
-export function SlideFrame({ slide, picking = false, thumb = false, className }: Props) {
+export function SlideFrame({ slide, shell, picking = false, thumb = false, className }: Props) {
   const { box, scale } = useScale();
   const name = thumb ? `Slide ${slide.n} thumbnail` : `Slide ${slide.n}`;
   return (
@@ -50,7 +62,7 @@ export function SlideFrame({ slide, picking = false, thumb = false, className }:
             title={name}
             sandbox="allow-scripts"
             tabIndex={thumb ? -1 : undefined}
-            srcDoc={picking ? slide.html + PICK : slide.html}
+            srcDoc={slideDoc(slide.html, shell, picking)}
           />
         ) : (
           <div className="flex h-full w-full flex-col justify-center gap-4 bg-gradient-to-br from-white to-brand-soft/60 px-20" title={name}>

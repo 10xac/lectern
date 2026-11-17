@@ -11,9 +11,11 @@ import { ShareDialog } from './ShareDialog';
 import { SidePanel } from './SidePanel';
 import { NotesPanel, SlideTitle, type EditSlide } from './SlideEdits';
 import { SlideFrame } from './SlideFrame';
+import { SlideActionDialogs } from './SlideMenu';
 import { SlideRail } from './SlideRail';
 import { TraceDrawer } from './TraceDrawer';
 import { useDeckView } from './useDeckView';
+import { useSlideActions } from './useSlideActions';
 
 export interface ViewerProps {
   deck: Deck;
@@ -24,6 +26,8 @@ export interface ViewerProps {
   author?: string;
   editSlide: EditSlide;
   reload: () => void;
+  /** Replace the deck (after a change that returns the whole deck, e.g. a move). */
+  setDeck: (deck: Deck) => void;
   onVisibility: (v: Visibility) => void;
 }
 
@@ -31,6 +35,7 @@ export interface ViewerProps {
 export function DeckViewer(props: ViewerProps) {
   const { deck, base, canEdit } = props;
   const view = useDeckView(deck);
+  const actions = useSlideActions({ deck, setDeck: props.setDeck, go: view.go, editSlide: props.editSlide, onRenumber: () => view.setSelected([]) });
   const slideChat = useSlideChat(deck.id, view.current);
   const deckChat = useSlideChat(deck.id, null);
   const [share, setShare] = useState(false);
@@ -41,14 +46,15 @@ export function DeckViewer(props: ViewerProps) {
   if (!slide) return <p className="p-8 text-ink-muted">This deck has no slides.</p>;
   return (
     <div className="flex flex-col lg:h-[calc(100vh-64px)]">
-      <DeckBar deck={deck} presentTo={`${base}/${deck.id}/present?slide=${slide.n}`} back={base === '/deck' ? '/' : undefined}
+      <DeckBar deck={deck} presentTo={`${base}/${deck.id}/present?slide=${slide.n}`} back={base === '/deck' ? '/' : undefined} canDownload={canEdit}
         onShare={canEdit ? () => setShare(true) : undefined} onInfluence={canEdit ? () => void view.dna.open() : undefined} />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <aside className="shrink-0 border-b border-line-soft bg-surface lg:w-56 lg:overflow-y-auto lg:border-b-0 lg:border-r xl:w-60">
           {canEdit && view.selected.length > 0 && (
             <SelectionBar count={view.selected.length} onInfluence={() => void view.dna.open(undefined, view.selected)} onNotes={() => setBulkNotes(true)} onClear={() => view.setSelected([])} />
           )}
-          <SlideRail slides={deck.slides} current={slide.n} onSelect={view.go} selected={view.selected} onToggle={view.toggle} selectable={canEdit} />
+          <SlideRail slides={deck.slides} shell={deck.shell} current={slide.n} onSelect={view.go} selected={view.selected} onToggle={view.toggle}
+            selectable={canEdit} actions={canEdit ? actions : undefined} />
         </aside>
         <div className="min-w-0 flex-1 overflow-y-auto bg-surface-muted p-4 lg:p-6">
           <div className="mx-auto max-w-5xl space-y-4">
@@ -59,7 +65,7 @@ export function DeckViewer(props: ViewerProps) {
               <span className="text-sm tabular-nums text-ink-muted" aria-live="polite">{slide.n} / {deck.slides.length}</span>
               <Button variant="ghost" size="icon" aria-label="Next slide" disabled={slide.n >= deck.slides.length} onClick={() => view.go(slide.n + 1)}><ChevronRight className="h-4 w-4" aria-hidden /></Button>
             </div>
-            <SlideFrame slide={slide} picking={view.dna.picking} className="rounded-lg shadow-card" />
+            <SlideFrame slide={slide} shell={deck.shell} picking={view.dna.picking} className="rounded-lg shadow-card" />
             <NotesPanel key={slide.n} slide={slide} edit={edit} open={notesOpen} onToggle={() => setNotesOpen((o) => !o)} />
             <AuthorData deck={deck} highlight={view.highlight} canEdit={canEdit} onDone={props.reload} />
           </div>
@@ -69,6 +75,7 @@ export function DeckViewer(props: ViewerProps) {
             onOpenInfluence={(id) => void view.dna.open(id)} dnaVersion={view.dna.version} admin={props.admin} slideChat={slideChat} deckChat={deckChat} />
         </aside>
       </div>
+      {canEdit && <SlideActionDialogs actions={actions} />}
       <Overlays {...props} view={view} slideN={slide.n} share={share} setShare={setShare} bulkNotes={bulkNotes} setBulkNotes={setBulkNotes} />
     </div>
   );

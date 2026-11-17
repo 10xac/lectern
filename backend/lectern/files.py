@@ -176,7 +176,10 @@ class Files:
             raise FileError(404, f"no file at {path} to overwrite")
         kind = mime or mime_of(path)
         text = extract_text(kind, data)
-        self.blobs.put(path, data)
+        try:
+            self.blobs.put(path, data)
+        except OSError as exc:  # e.g. a volume the server's user cannot write (see deploy/README.md)
+            raise FileError(503, f"file storage is not writable ({exc.strerror}); ask an admin") from exc
         sha, size = hashlib.sha256(data).hexdigest(), len(data)
         with self.store.tx() as db:
             if old is None:

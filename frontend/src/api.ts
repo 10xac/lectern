@@ -2,13 +2,13 @@
 // in production the same server serves the app and maps /api/* itself.
 import type {
   AccessToken, Attachment, ConsentView, Connection, Deck, DeckSummary, DnaGraph, Influence, InfluenceIn,
-  Job, JobEvent, Me, ModelSettings, OAuthClient, Reconciled, Sharing, Slide, StoredFile, ThreadMessage, Trace,
+  Job, JobEvent, Me, ModelSettings, OAuthClient, Reconciled, Sharing, Slide, SlideChange, StoredFile, ThreadMessage, Trace,
   User, Visibility,
 } from './types';
 
 export type * from './types';
 
-const BASE = '/api';
+export const BASE = '/api';
 const JOB_EVENTS = ['status', 'triage', 'researcher', 'budget', 'fuse', 'done'];
 
 /** A failed request: the server's `detail` as the message, plus the HTTP status. */
@@ -71,8 +71,16 @@ export const api = {
   getDeck: (id: number) => call<Deck>(`/decks/${id}`),
   uploadDeck: (file: File) => upload<Deck>('/decks', file),
   uploadAttachment: (deckId: number, file: File) => upload<Attachment>(`/decks/${deckId}/attachments`, file),
-  editSlide: (deckId: number, n: number, change: { title?: string; notes?: string }) =>
-    send<Partial<Slide>>('PATCH', `/decks/${deckId}/slides/${n}`, change),
+  renameDeck: (deckId: number, title: string) => send<Deck>('PATCH', `/decks/${deckId}`, { title }),
+  /** Delete a deck with its slides, DNA, chats and files. */
+  deleteDeck: (deckId: number) => send<void>('DELETE', `/decks/${deckId}`),
+  updateSlide: (deckId: number, n: number, change: SlideChange) => send<Slide>('PATCH', deckPath(deckId, n), change),
+  /** Add a slide at 1-based position `at` (the end when omitted). */
+  addSlide: (deckId: number, slide: SlideChange & { at?: number }) => send<Slide>('POST', `/decks/${deckId}/slides`, slide),
+  /** Copy a slide; the copy lands right after it. */
+  duplicateSlide: (deckId: number, n: number) => send<Slide>('POST', `${deckPath(deckId, n)}/duplicate`),
+  moveSlide: (deckId: number, n: number, to: number) => send<Deck>('POST', `${deckPath(deckId, n)}/move`, { to }),
+  deleteSlide: (deckId: number, n: number) => send<Deck>('DELETE', deckPath(deckId, n)),
   sharing: (deckId: number) => call<Sharing>(`/decks/${deckId}/sharing`),
   share: (deckId: number, visibility: Visibility, password?: string) =>
     send<Sharing>('PUT', `/decks/${deckId}/sharing`, { visibility, password: password || null }),

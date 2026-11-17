@@ -15,6 +15,7 @@ from typing import Any
 
 from lectern.files import Files, Mode, StoredFile
 from lectern.graph.nodes.ingest import label
+from lectern.ingest.html_artifact import SLIDE_MARK
 from lectern.ingest.html_artifact import parse as parse_html
 from lectern.models import Deck, IngestError, Slide
 from lectern.store import Store
@@ -33,9 +34,12 @@ def parse_slide(file: StoredFile, data: bytes) -> Slide:
     """One slide from one file, with its metadata on top."""
     if file.mime == "text/html":
         try:
-            slide = parse_html(data, file.path).slides[0]
+            parsed = parse_html(data, file.path)
         except IngestError:
-            slide = parse_html(b"<section>" + data + b"</section>", file.path).slides[0]
+            parsed = parse_html(b"<section>" + data + b"</section>", file.path)
+        slide = parsed.slides[0]
+        if parsed.shell and slide.html is not None:  # the file's own head (styles, fonts) comes along
+            slide = slide.model_copy(update={"html": parsed.shell.replace(SLIDE_MARK, slide.html)})
     else:
         lines = data.decode("utf-8", errors="replace").strip().splitlines()
         head = lines[0].lstrip("# ").strip() if lines else ""
@@ -85,11 +89,17 @@ def put_slide(
     """Create or overwrite one slide file; its folder becomes (or stays) a deck."""
     folder = folder_of(files.clean(path))
     deck_id = store.deck_by_folder(folder)
+    created = deck_id is None
     if deck_id is None:
         title = (meta or {}).get("deck_title") or folder.rsplit("/", 1)[-1]
         deck_id = store.add_deck(Deck(title=title, source="folder", folder=folder))
     slide_meta = {k: v for k, v in (meta or {}).items() if k in SLIDE_META}
-    file = files.put(path, content, mode=mode, role="slide", deck_id=deck_id, meta=slide_meta)
+    try:
+        file = files.put(path, content, mode=mode, role="slide", deck_id=deck_id, meta=slide_meta)
+    except Exception:
+        if created:  # no empty deck is left behind when its first slide could not be stored
+            store.delete_deck(deck_id)
+        raise
     return rebuild(store, files, deck_id), file
 
 

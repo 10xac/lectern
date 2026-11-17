@@ -90,6 +90,20 @@ docker compose --env-file .env -f deploy/compose.yml up -d --build
 
 The database migrates itself on start (new tables and columns are added in place). Back up first.
 
+## File storage permissions
+
+The server runs as the user `lectern` (uid 10001) and stores slide files and uploads in the
+`lectern-blobs` volume. Images from v0.4 on create that folder owned by `lectern`, so a new volume
+is writable. A volume first created by an older image is owned by root: uploads then fail with
+"file storage is not writable", the log says `FILE STORAGE IS NOT WRITABLE` at startup and
+`/health` reports `"status": "degraded"`. Fix such a volume once (the project name is `lectern`,
+`lectern-dev` or `lectern-prod`):
+
+```bash
+docker run --rm -v <project>_lectern-blobs:/blobs alpine chown -R 10001 /blobs
+docker restart <project>-lectern-1
+```
+
 ## Back up
 
 The database (a consistent copy, even while lectern runs) and the blobs:

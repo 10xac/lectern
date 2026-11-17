@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, ApiError, type Deck, type Slide } from '../api';
+import { api, ApiError, type Deck, type Slide, type SlideChange } from '../api';
 
 /** Load one deck. `status` is the HTTP status of a failed load (401: not allowed to see it yet). */
 export function useDeck(deckId: number) {
@@ -19,10 +19,10 @@ export function useDeck(deckId: number) {
   }, [deckId, version]);
 
   const reload = useCallback(() => setVersion((v) => v + 1), []);
-  /** Edit a slide's title or notes on the server, then show the change without a reload. */
+  /** Edit a slide on the server, then show the change without a reload. */
   const editSlide = useCallback(
-    async (n: number, change: { title?: string; notes?: string }) => {
-      await api.editSlide(deckId, n, change);
+    async (n: number, change: SlideChange) => {
+      await api.updateSlide(deckId, n, change);
       setDeck((d) => d && { ...d, slides: d.slides.map((s): Slide => (s.n === n ? { ...s, ...change } : s)) });
     },
     [deckId],

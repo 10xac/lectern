@@ -28,6 +28,7 @@ class Slide(BaseModel):
     persona: str | None = None
     agent: dict[str, Any] | None = None  # this slide's AgentSpec layer
     file_id: str | None = None  # in a folder deck, the slide's own file
+    ref: str | None = None  # an uploaded deck's lasting slide id, once slides were moved or added
 
 
 class Deck(BaseModel):
@@ -42,6 +43,7 @@ class Deck(BaseModel):
     folder: str | None = None  # a folder deck's path prefix
     visibility: Literal["private", "public", "password"] = "private"  # who may see it (decision D14)
     outline: str = ""
+    shell: str | None = None  # an HTML deck's document around one slide (its head, fonts, scripts)
     slides: list[Slide] = Field(default_factory=list)
 
     def slide(self, n: int) -> Slide | None:
@@ -50,7 +52,7 @@ class Deck(BaseModel):
 
     def slide_ref(self, slide: Slide) -> str:
         """A slide's lasting id: its own file id (folder decks), else ``<deck file id>#<n>``."""
-        return slide.file_id or f"{self.file_id or f'deck-{self.id}'}#{slide.n}"
+        return slide.file_id or slide.ref or f"{self.file_id or f'deck-{self.id}'}#{slide.n}"
 
     def slide_by_ref(self, ref: str) -> Slide | None:
         return next((s for s in self.slides if self.slide_ref(s) == ref), None)

@@ -89,8 +89,10 @@ limits and daily budget.
   `claude mcp add --transport http lectern https://<your host>/mcp/ --header "Authorization: Bearer <token>"`,
   or run it locally with `claude mcp add lectern -- uv run --directory "$PWD" lectern mcp`.
 
-Claude can then list and read decks, put and edit slides (`put_slide`, `edit_slide`), log the DNA
-(`add_influence(s)`), share a deck and ask questions. See `docs/dna.md`.
+Claude can then list and read decks; put, update, insert, duplicate, move and delete slides
+(`put_slide`, `update_slide`, `insert_slide`, `duplicate_slide`, `move_slide`, `delete_slide`);
+rename and delete decks; log the DNA (`add_influence(s)`); share a deck and ask questions. See
+`docs/dna.md`.
 
 ## How it works
 

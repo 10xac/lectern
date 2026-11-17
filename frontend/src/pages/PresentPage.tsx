@@ -50,7 +50,7 @@ function Presenter({ deck, base }: { deck: Deck; base: string }) {
     <div className="fixed inset-0 flex flex-col bg-[#0B0B12] text-white" aria-label={`Presenting ${deck.title}`} role="region">
       <div className="flex min-h-0 flex-1 items-center justify-center p-2 sm:p-6">
         <div style={{ width: 'min(100%, calc((100vh - 7rem) * 16 / 9))' }}>
-          <SlideFrame slide={slide} className="rounded-md shadow-2xl" />
+          <SlideFrame slide={slide} shell={deck.shell} className="rounded-md shadow-2xl" />
           {notes && <p className="mt-3 max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md bg-white/10 p-3 text-sm text-white/90" aria-label="Presenter notes">{slide.notes || 'No presenter notes.'}</p>}
         </div>
       </div>

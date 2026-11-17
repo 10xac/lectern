@@ -18,6 +18,7 @@ Uploads are capped at 20 MB per file; decks at 200 slides (the ``normalise`` nod
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from collections.abc import AsyncIterator, Callable
@@ -33,7 +34,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from lectern import guard, mcp_server, service
 from lectern.agents import resolve
 from lectern.auth_routes import add_auth_routes
-from lectern.blobs import BlobStore, MemoryBlobs, blobs_from_env
+from lectern.blobs import BlobStore, MemoryBlobs, blobs_from_env, problem
+from lectern.deck_routes import add_deck_routes
 from lectern.dna import DNA
 from lectern.dna.routes import add_dna_routes
 from lectern.files import Files
@@ -65,11 +67,6 @@ class DeckSummary(BaseModel):
     title: str
     source: str
     visibility: str = "private"
-
-
-class SlideEdit(BaseModel):
-    title: str | None = Field(default=None, max_length=300)
-    notes: str | None = Field(default=None, max_length=20_000)
 
 
 AgentLayer = Annotated[dict[str, Any] | None, Body()]
@@ -132,10 +129,11 @@ def create_app(*args: Any, **kwargs: Any) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         jobs.recover()  # jobs a previous process was running are failed: interrupted
+        check_storage(app, hub)
         async with mcp.session_manager.run():
             yield
 
-    app = FastAPI(title="lectern", version="0.3.1", lifespan=lifespan)
+    app = FastAPI(title="lectern", version="0.4.0", lifespan=lifespan)
     app.state.hub = hub
     guard.install(app, hub.users)
     add_auth_routes(app, hub.users, hub.settings, guard.auth_on(os.environ))
@@ -143,10 +141,7 @@ def create_app(*args: Any, **kwargs: Any) -> FastAPI:
     app.state.sharing = Sharing(db)
     add_sharing_routes(app, app.state.sharing)
     add_oauth_routes(app, hub.oauth)
-
-    @app.get("/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok", "version": app.version}
+    add_health(app)
 
     app.mount("/mcp", mcp_app)
 
@@ -164,10 +159,6 @@ def create_app(*args: Any, **kwargs: Any) -> FastAPI:
             DeckSummary(id=d.id or 0, title=d.title, source=d.source, visibility=d.visibility) for d in decks
         ]
 
-    @app.patch("/decks/{deck_id}/slides/{n}")
-    def edit_slide(deck_id: int, n: int, body: SlideEdit) -> dict[str, Any]:
-        return hub.edit_slide(deck_id, n, body.title, body.notes)
-
     @app.get("/decks/{deck_id}")
     def get_deck(deck_id: int) -> DeckOut:
         return DeckOut(**hub.deck(deck_id).model_dump(), attachments=db.attachments(deck_id))
@@ -184,6 +175,7 @@ def create_app(*args: Any, **kwargs: Any) -> FastAPI:
             raise HTTPException(404, f"no trace {trace_id}")
         return trace
 
+    add_deck_routes(app, hub)
     add_agent_routes(app, hub)
     add_job_routes(app, jobs, hub.deck)
     add_dna_routes(app, hub, read_upload)
@@ -191,6 +183,27 @@ def create_app(*args: Any, **kwargs: Any) -> FastAPI:
     if static and Path(static).is_dir():
         app.mount("/", WebApp(directory=static, html=True), name="web")
     return app
+
+
+def check_storage(app: FastAPI, hub: Hub) -> None:
+    """Say loudly, at startup and on /health, when files cannot be stored (a volume the server's
+    user cannot write). /health stays 200 so a deploy keeps serving what it can."""
+    app.state.storage = problem(hub.files.blobs)
+    if app.state.storage:
+        logging.getLogger("lectern").error(
+            "FILE STORAGE IS NOT WRITABLE: uploads and new slides will fail (%s). "
+            "See deploy/README.md, 'File storage permissions'.",
+            app.state.storage,
+        )
+
+
+def add_health(app: FastAPI) -> None:
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        storage = getattr(app.state, "storage", None)
+        if storage:
+            return {"status": "degraded", "storage": storage, "version": app.version}
+        return {"status": "ok", "version": app.version}
 
 
 def add_agent_routes(app: FastAPI, hub: Hub) -> None:

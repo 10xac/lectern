@@ -5,5 +5,6 @@ import { vi } from 'vitest';
 const real = await vi.importActual<typeof import('../api')>('../api');
 
 export const ApiError = real.ApiError;
+export const BASE = real.BASE;
 export const setCsrf = vi.fn();
 export const api = Object.fromEntries(Object.keys(real.api).map((name) => [name, vi.fn()])) as unknown as typeof real.api;

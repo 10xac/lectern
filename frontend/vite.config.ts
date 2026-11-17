@@ -1,4 +1,4 @@
-// Vite serves the app on :5173 and forwards /api/* to the FastAPI backend on :8000.
+// Vite serves the app on :5173 and forwards /api/* (and slide images under /media/*) to the FastAPI backend on :8000.
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -8,6 +8,8 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
+      // PowerPoint slides reference their images at /media/{deck}/{name}, served as-is by the backend.
+      '/media': 'http://127.0.0.1:8000',
     },
   },
   build: {

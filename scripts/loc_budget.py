@@ -2,14 +2,17 @@
 
 Counts non-blank, non-comment lines (Python docstrings count as comments) and fails when:
 
-* backend source (backend/lectern) is over 5,400 lines (3,800 in the v0.2 spec; raised for the owner's
+* backend source (backend/lectern) is over 6,300 lines (3,800 in the v0.2 spec; raised for the owner's
   file registry, D1, the production guard, D10, user accounts, access tokens and model settings
-  managed from the web app, D11 and D12, and OAuth for MCP connectors such as claude.ai, D13);
-* frontend source (frontend/src, not tests) is over 3,900 lines (1,600 before D11 and D12, 1,800
+  managed from the web app, D11 and D12, OAuth for MCP connectors such as claude.ai, D13, and in
+  v0.4 managing decks and slides and drawing HTML and PowerPoint decks as they were made, D15);
+* frontend source (frontend/src, not tests) is over 4,400 lines (1,600 before D11 and D12, 1,800
   before the redesigned web app: a router, an app shell with sider navigation, a small component
   library on Tailwind (buttons, cards, tables, drawers, dialogs, toasts), present mode, sharing,
-  slide editing and one page per admin task replaced the single-screen app);
-* tests and fixtures (backend/tests, frontend tests) are over 3,600 lines (the v0.2 spec sets none);
+  slide editing and one page per admin task replaced the single-screen app; 3,900 before the deck
+  and slide menus of v0.4, D15);
+* tests and fixtures (backend/tests, frontend tests) are over 4,200 lines (the v0.2 spec sets
+  none; 3,600 before v0.4);
 * any counted file is over 300 lines, or any function is over 60 lines.
 
 TypeScript functions are found with a simple bracket-matching heuristic, which is plenty for
@@ -57,9 +60,9 @@ def groups() -> list[Group]:
     fe = [p for ext in ("ts", "tsx", "css") for p in (ROOT / "frontend/src").rglob(f"*.{ext}")]
     tests = [p for ext in ("py", "html", "json") for p in (ROOT / "backend/tests").rglob(f"*.{ext}")]
     return [
-        Group("backend", 5400, sorted((ROOT / "backend/lectern").rglob("*.py"))),
-        Group("frontend", 3900, sorted(p for p in fe if not is_test(p))),
-        Group("tests", 3600, sorted(tests + [p for p in fe if is_test(p)])),
+        Group("backend", 6300, sorted((ROOT / "backend/lectern").rglob("*.py"))),
+        Group("frontend", 4400, sorted(p for p in fe if not is_test(p))),
+        Group("tests", 4200, sorted(tests + [p for p in fe if is_test(p)])),
     ]
 
 

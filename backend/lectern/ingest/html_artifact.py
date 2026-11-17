@@ -173,6 +173,54 @@ def element_ids(html: str | None) -> list[dict[str, str]]:
     return [{"id": m.group(2), "tag": m.group(1)} for m in ELEMENT.finditer(html or "")]
 
 
+SLIDE_MARK = "<!--lectern-slide-->"
+
+
+def attrs_of(node: Node | None) -> str:
+    return "" if node is None else "".join(f' {k}="{escape(v)}"' for k, v in node.attrs.items())
+
+
+def ancestors(root: Node, target: Node) -> list[Node]:
+    """The elements from ``root`` down to ``target`` (both excluded)."""
+    for child in root.children:
+        if isinstance(child, Node):
+            if child is target:
+                return []
+            if _contains(child, target):
+                return [child, *ancestors(child, target)]
+    return []
+
+
+def _contains(node: Node, target: Node) -> bool:
+    return any(c is target or (isinstance(c, Node) and _contains(c, target)) for c in node.children)
+
+
+def shell_of(root: Node, slides: list[Node]) -> str:
+    """The document around one slide: its ``<head>`` (styles, fonts, scripts), the ``<html>`` and
+    ``<body>`` attributes, the wrappers the first slide sits in (``.reveal > .slides``) and the
+    scripts at the end of the body. Each slide is shown in this shell, at ``SLIDE_MARK``, so a
+    framework deck (reveal.js) or a styled artifact looks as it did, one slide at a time."""
+    html, head, body = first(root, ("html",)), first(root, ("head",)), first(root, ("body",))
+    if head is not None:
+        head_inner = "".join(to_html(c) for c in head.children if isinstance(c, Node))
+    else:  # a fragment: its styles and stylesheet links act as the head
+        head_inner = "".join(
+            to_html(n) for tag in ("link", "style") for n in _all(root, tag) if not _in_slide(n, slides)
+        )
+    chain = [a for a in ancestors(body or root, slides[0]) if not is_slide(a)]
+    opened = "".join(f"<{a.tag}{attrs_of(a)}>" for a in chain)
+    closed = "".join(f"</{a.tag}>" for a in reversed(chain))
+    scripts = "".join(to_html(n) for n in _all(body or root, "script") if not _in_slide(n, slides))
+    return (
+        f'<!doctype html><html{attrs_of(html)}><head><meta charset="utf-8">{head_inner}</head>'
+        f"<body{attrs_of(body)}>{opened}{SLIDE_MARK}{closed}{scripts}</body></html>"
+    )
+
+
+def _in_slide(node: Node, slides: list[Node]) -> bool:
+    return any(_contains(s, node) for s in slides)
+
+
 def to_slide(n: int, node: Node, styles: str) -> Slide:
     tag_elements(node)
     heading = first(node, HEADINGS)
@@ -192,7 +240,7 @@ def to_slide(n: int, node: Node, styles: str) -> Slide:
 
 
 def parse(data: bytes, name: str = "deck.html") -> Deck:
-    """Parse an HTML deck into a ``Deck``; ``<style>`` blocks travel with every slide."""
+    """Parse an HTML deck into a ``Deck``; each slide is shown inside the deck's ``shell``."""
     builder = _TreeBuilder()
     builder.feed(data.decode("utf-8", errors="replace"))
     builder.close()
@@ -202,8 +250,10 @@ def parse(data: bytes, name: str = "deck.html") -> Deck:
         raise IngestError(f"{name}: no <section> or .slide elements found")
     title_node = first(root, ("title",))
     title = tidy(text_of(title_node)) if title_node is not None else PurePath(name).stem
-    styles = "".join(to_html(n) for n in _all(root, "style"))
-    return Deck(title=title, source="html", slides=[to_slide(i + 1, s, styles) for i, s in enumerate(slides)])
+    shell = shell_of(root, slides)
+    return Deck(
+        title=title, source="html", shell=shell, slides=[to_slide(i + 1, s, "") for i, s in enumerate(slides)]
+    )
 
 
 def _all(node: Node, tag: str) -> list[Node]:

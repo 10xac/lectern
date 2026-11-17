@@ -192,11 +192,55 @@ class Tools:
         viewer = f"u{person.id}" if person is not None else "mcp"
         return {"job_id": self.hub.ask(deck_id, slide, question, viewer).id}
 
-    def edit_slide(
-        self, deck_id: int, n: int, title: str | None = None, notes: str | None = None
+    def rename_deck(self, deck_id: int, title: str) -> dict[str, Any]:
+        """Give a deck a new title."""
+        return self.hub.rename_deck(deck_id, title)
+
+    def delete_deck(self, deck_id: int, confirm: bool = False) -> str:
+        """Delete a deck with everything in it: slides, DNA, chats, attachments and stored files.
+        It cannot be undone; ask the person first, then call with confirm=true."""
+        if not confirm:
+            raise ValueError("deleting a deck cannot be undone: ask the person, then pass confirm=true")
+        self.hub.delete_deck(deck_id)
+        return "deleted"
+
+    def update_slide(
+        self,
+        deck_id: int,
+        n: int,
+        title: str | None = None,
+        body: str | None = None,
+        notes: str | None = None,
+        html: str | None = None,
     ) -> dict[str, Any]:
-        """Change a slide's title or presenter notes (any deck; folder decks keep them in file metadata)."""
-        return self.hub.edit_slide(deck_id, n, title, notes)
+        """Change a slide's title, text, presenter notes or HTML; it keeps its id and DNA."""
+        patch = {"title": title, "body": body, "notes": notes, "html": html}
+        return self.hub.update_slide(deck_id, n, {k: v for k, v in patch.items() if v is not None})
+
+    def insert_slide(
+        self,
+        deck_id: int,
+        at: int | None = None,
+        title: str | None = None,
+        body: str | None = None,
+        notes: str | None = None,
+        html: str | None = None,
+    ) -> dict[str, Any]:
+        """Add a slide at position at (1-based; the end when left out) with text or HTML."""
+        fields = {"title": title, "body": body, "notes": notes, "html": html}
+        return self.hub.insert_slide(deck_id, at, {k: v for k, v in fields.items() if v is not None})
+
+    def duplicate_slide(self, deck_id: int, n: int) -> dict[str, Any]:
+        """Copy a slide; the copy goes right after it."""
+        return self.hub.duplicate_slide(deck_id, n)
+
+    def move_slide(self, deck_id: int, n: int, to: int) -> dict[str, Any]:
+        """Move slide n to position to; its DNA and chats move with it."""
+        return self.hub.move_slide(deck_id, n, to)
+
+    def delete_slide(self, deck_id: int, n: int) -> dict[str, Any]:
+        """Remove one slide; the slides after it move up one."""
+        return self.hub.delete_slide(deck_id, n)
 
     def share_deck(self, deck_id: int, visibility: str, password: str | None = None) -> dict[str, Any]:
         """Who may see a deck: private (signed-in users), public (anyone with the link) or password."""

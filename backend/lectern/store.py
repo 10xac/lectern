@@ -47,6 +47,27 @@ ADDED_COLUMNS = [
     ("slides", "file_id", "TEXT"),
     ("decks", "visibility", "TEXT"),  # private (NULL) | public | password (decision D14)
     ("decks", "share_hash", "TEXT"),
+    ("slides", "ref", "TEXT"),  # an uploaded deck's lasting slide id once its slides were moved
+    ("decks", "shell", "TEXT"),  # an HTML deck's document around one slide (v0.4)
+]
+
+
+# What deleting a deck removes: (table, condition on the deck id). Tables other modules own are
+# skipped when that module never ran (a bare Store in tests).
+_TRACES = "trace_id IN (SELECT id FROM traces WHERE deck_id = ?)"
+CASCADE = [
+    ("trace_steps", _TRACES),
+    ("traces", "deck_id = ?"),
+    ("chunks", "deck_id = ?"),
+    ("attachments", "deck_id = ?"),
+    ("slides", "deck_id = ?"),
+    ("influence_history", "influence_id IN (SELECT id FROM influences WHERE deck_id = ?)"),
+    ("influences", "deck_id = ?"),
+    ("job_events", "job_id IN (SELECT id FROM jobs WHERE deck_id = ?)"),
+    ("jobs", "deck_id = ?"),
+    ("slide_messages", "deck_id = ?"),
+    ("files", "deck_id = ?"),
+    ("decks", "id = ?"),
 ]
 
 
@@ -87,8 +108,8 @@ class Store:
         """Save a deck and its slides; returns the new deck id."""
         with self.tx() as db:
             cur = db.execute(
-                "INSERT INTO decks (title, source, persona, outline, agent, file_id, folder)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO decks (title, source, persona, outline, agent, file_id, folder, shell)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     deck.title,
                     deck.source,
@@ -97,6 +118,7 @@ class Store:
                     dumps(deck.agent),
                     deck.file_id,
                     deck.folder,
+                    deck.shell,
                 ),
             )
             deck_id = int(cur.lastrowid or 0)
@@ -106,22 +128,13 @@ class Store:
     @staticmethod
     def _insert_slides(db: sqlite3.Connection, deck_id: int, slides: Sequence[Slide]) -> None:
         db.executemany(
-            "INSERT INTO slides (deck_id, n, title, body, notes, html, persona, agent, file_id)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO slides (deck_id, n, title, body, notes, html, persona, agent, file_id, ref)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
-                (deck_id, s.n, s.title, s.body, s.notes, s.html, s.persona, dumps(s.agent), s.file_id)
+                (deck_id, s.n, s.title, s.body, s.notes, s.html, s.persona, dumps(s.agent), s.file_id, s.ref)
                 for s in slides
             ],
         )
-
-    def edit_slide(self, deck_id: int, n: int, title: str | None, notes: str | None) -> None:
-        """Change a slide's title or presenter notes (decks that are not folder decks)."""
-        with self.tx() as db:
-            db.execute(
-                "UPDATE slides SET title = COALESCE(?, title), notes = COALESCE(?, notes)"
-                " WHERE deck_id = ? AND n = ?",
-                (title, notes, deck_id, n),
-            )
 
     def replace_slides(self, deck_id: int, slides: Sequence[Slide], outline: str) -> None:
         """A folder deck's slides, rebuilt from its files after any change."""
@@ -133,6 +146,40 @@ class Store:
     def set_deck_file(self, deck_id: int, file_id: str) -> None:
         with self.tx() as db:
             db.execute("UPDATE decks SET file_id = ? WHERE id = ?", (file_id, deck_id))
+
+    def rename_deck(self, deck_id: int, title: str) -> None:
+        with self.tx() as db:
+            db.execute("UPDATE decks SET title = ? WHERE id = ?", (title, deck_id))
+
+    def delete_deck(self, deck_id: int) -> None:
+        """Every row about a deck, in one transaction (its blobs go first, in ``manage``)."""
+        with self.tx() as db:
+            have = {r["name"] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+            for table, where in CASCADE:
+                if table in have:
+                    db.execute(f"DELETE FROM {table} WHERE {where}", (deck_id,))
+
+    def remap_slides(self, deck_id: int, moves: dict[int, int | None]) -> None:
+        """Keep each slide's chat thread and jobs on it after slides were moved, added or removed:
+        ``moves`` maps old numbers to new ones (``None``: the slide is gone, and so is its thread)."""
+        with self.tx() as db:
+            have = {r["name"] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+            for table in ("slide_messages", "jobs"):
+                if table not in have:
+                    continue
+                for old, new in moves.items():  # negative first, so no two slides share a number midway
+                    if new is None:
+                        db.execute(f"DELETE FROM {table} WHERE deck_id = ? AND slide = ?", (deck_id, old))
+                    else:
+                        db.execute(
+                            f"UPDATE {table} SET slide = ? WHERE deck_id = ? AND slide = ?",
+                            (-new, deck_id, old),
+                        )
+                db.execute(f"UPDATE {table} SET slide = -slide WHERE deck_id = ? AND slide < 0", (deck_id,))
+
+    def set_shell(self, deck_id: int, shell: str | None) -> None:
+        with self.tx() as db:
+            db.execute("UPDATE decks SET shell = ? WHERE id = ?", (shell, deck_id))
 
     def deck_by_folder(self, folder: str) -> int | None:
         with self.tx() as db:
@@ -156,6 +203,7 @@ class Store:
             folder=row["folder"],
             visibility=row["visibility"] or "private",
             outline=row["outline"],
+            shell=row["shell"],
             slides=[
                 Slide(
                     n=s["n"],
@@ -166,6 +214,7 @@ class Store:
                     persona=s["persona"],
                     agent=loads(s["agent"]),
                     file_id=s["file_id"],
+                    ref=s["ref"],
                 )
                 for s in slides
             ],

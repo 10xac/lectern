@@ -1,6 +1,7 @@
 import { act, fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, ApiError } from '../api';
+import { DECK } from '../test/deck';
 import { fakeDeckServer } from '../test/fakeDeckServer';
 import { renderApp, VISITOR } from '../test/render';
 
@@ -9,7 +10,7 @@ vi.mock('../api', () => import('../test/apiMock'));
 beforeEach(() => {
   vi.clearAllMocks();
   fakeDeckServer();
-  vi.mocked(api.editSlide).mockResolvedValue({});
+  vi.mocked(api.updateSlide).mockResolvedValue(DECK.slides[0]);
 });
 
 const click = async (el: HTMLElement) => act(async () => fireEvent.click(el));
@@ -40,7 +41,7 @@ describe('slide notes and titles', () => {
     await click(button('Edit notes'));
     fireEvent.change(screen.getByLabelText('Notes for slide 1'), { target: { value: 'Say hello' } });
     await click(button('Save notes'));
-    expect(api.editSlide).toHaveBeenCalledWith(7, 1, { notes: 'Say hello' });
+    expect(api.updateSlide).toHaveBeenCalledWith(7, 1, { notes: 'Say hello' });
     expect(screen.getByText('Say hello')).toBeTruthy();
   });
 
@@ -49,7 +50,7 @@ describe('slide notes and titles', () => {
     await click(await screen.findByRole('button', { name: 'Rename slide' }));
     fireEvent.change(screen.getByLabelText('Slide title'), { target: { value: 'Welcome' } });
     await click(button('Save title'));
-    expect(api.editSlide).toHaveBeenCalledWith(7, 1, { title: 'Welcome' });
+    expect(api.updateSlide).toHaveBeenCalledWith(7, 1, { title: 'Welcome' });
     expect(screen.getByRole('button', { name: 'Slide 1: Welcome' })).toBeTruthy();
   });
 
@@ -62,8 +63,8 @@ describe('slide notes and titles', () => {
     const drawer = screen.getByRole('dialog', { name: 'Notes for 3 slides' });
     fireEvent.change(within(drawer).getByLabelText('Notes for slide 2'), { target: { value: 'New plan notes' } });
     await click(within(drawer).getByRole('button', { name: 'Save notes' }));
-    expect(api.editSlide).toHaveBeenCalledTimes(1);
-    expect(api.editSlide).toHaveBeenCalledWith(7, 2, { notes: 'New plan notes' });
+    expect(api.updateSlide).toHaveBeenCalledTimes(1);
+    expect(api.updateSlide).toHaveBeenCalledWith(7, 2, { notes: 'New plan notes' });
   });
 });
 

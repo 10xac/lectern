@@ -145,3 +145,14 @@ def blobs_from_env(env: Mapping[str, str] | None = None) -> BlobStore:
         bucket, _, prefix = where[5:].partition("/")
         return S3Blobs(bucket, prefix)
     return LocalBlobs(where)
+
+
+def problem(blobs: BlobStore) -> str | None:
+    """Why ``blobs`` cannot store files, or None. Checked at startup and shown on /health, so a
+    volume the server's user cannot write is found before the first upload fails."""
+    try:
+        blobs.put(".lectern-check", b"ok")
+        blobs.delete(".lectern-check")
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"
+    return None

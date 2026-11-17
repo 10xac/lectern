@@ -1,19 +1,19 @@
 import { Check, NotebookPen, Pencil, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import type { Slide } from '../api';
+import type { Slide, SlideChange } from '../api';
 import { Button } from '../components/ui/Button';
 import { ErrorText } from '../components/ui/ErrorText';
 import { Input, TextArea } from '../components/ui/Field';
 import { useToast } from '../components/ui/Toast';
 
-export type EditSlide = (n: number, change: { title?: string; notes?: string }) => Promise<void>;
+export type EditSlide = (n: number, change: SlideChange) => Promise<void>;
 
 /** Run an edit, toasting success; the error message comes back for the form to show. */
 function useSave(edit: EditSlide) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { show } = useToast();
-  const save = async (n: number, change: { title?: string; notes?: string }, done: string) => {
+  const save = async (n: number, change: SlideChange, done: string) => {
     setBusy(true);
     setError(null);
     try {

@@ -5,19 +5,25 @@ anything one surface can do, the others can do too.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from typing import Any, Literal
 
 from lectern import folders, service
 from lectern.dna import DNA, Influence, InfluenceIn, InfluencePatch, Via
 from lectern.dna import graph as dna_graph
 from lectern.files import FileError, Files, Mode, Reconciled, StoredFile
+from lectern.ingest import pptx_html
 from lectern.ingest.html_artifact import element_ids
 from lectern.jobs.manager import JobManager
+from lectern.manage import Manager
 from lectern.models import Deck, Job
 from lectern.oauth import OAuth
 from lectern.settings import Settings
 from lectern.store import Store
 from lectern.users import Users
+
+log = logging.getLogger("lectern")
 
 
 class Hub:
@@ -33,6 +39,7 @@ class Hub:
     ) -> None:
         self.store, self.files, self.dna, self.jobs = store, files, dna, jobs
         self.users, self.settings, self.oauth = users, settings, oauth
+        self.manage = Manager(store, files)
 
     # decks and slides ---------------------------------------------------------------------------
 
@@ -67,10 +74,37 @@ class Hub:
     def create_deck(self, name: str, data: bytes) -> Deck:
         """Upload a whole deck (HTML, pptx or Google Slides JSON); its original is kept as a file."""
         run = service.run_ingest(self.store, name, data)
-        if run.state.deck_id is None:
+        deck_id = run.state.deck_id
+        if deck_id is None:
             raise FileError(422, run.outcome or "refused")
-        folders.register_upload(self.store, self.files, run.state.deck_id, name, data)
-        return self.deck(run.state.deck_id)
+        try:  # all or nothing: a deck whose original could not be stored is removed again
+            folders.register_upload(self.store, self.files, deck_id, name, data)
+            if self.deck(deck_id).source == "pptx":
+                self._draw_pptx(deck_id, data)
+        except Exception:
+            try:
+                self.manage.delete_deck(self.deck(deck_id))
+            except FileError:
+                self.store.delete_deck(deck_id)
+            raise
+        return self.deck(deck_id)
+
+    def _draw_pptx(self, deck_id: int, data: bytes) -> None:
+        """Give a PowerPoint deck's slides their look (shapes, text, pictures as files)."""
+        try:
+            pages, media = pptx_html.render(data)
+        except Exception:
+            log.warning("could not draw deck %s; showing its slides as text", deck_id, exc_info=True)
+            return
+        for name, blob in media.items():
+            self.files.put(f"uploads/{deck_id}/media/{name}", blob, role="reference", deck_id=deck_id)
+        deck = self.deck(deck_id)
+        url = f"/media/{deck_id}/"
+        slides = [
+            s.model_copy(update={"html": page.replace(pptx_html.MEDIA, url)})
+            for s, page in zip(deck.slides, pages, strict=False)
+        ]
+        self.store.replace_slides(deck_id, slides, deck.outline)
 
     def put_slide(
         self, path: str, content: bytes, mode: Mode = "upsert", meta: dict[str, Any] | None = None
@@ -79,17 +113,51 @@ class Hub:
         slide = next(s for s in deck.slides if s.file_id == file.id)
         return {"deck_id": deck.id, "slide": self.slide_info(deck, slide.n), "file": file.model_dump()}
 
-    def edit_slide(self, deck_id: int, n: int, title: str | None, notes: str | None) -> dict[str, Any]:
-        """A slide's title or presenter notes. A folder deck's slide keeps them in its file's metadata."""
-        deck = self.deck(deck_id, n)
-        slide = deck.slide(n)
-        assert slide is not None
-        if slide.file_id is not None:
-            patch = {k: v for k, v in (("title", title), ("notes", notes)) if v is not None}
-            self.update_meta(self.files.by_id(slide.file_id).path, patch)
-        else:
-            self.store.edit_slide(deck_id, n, title, notes)
+    # managing decks and slides (``manage.py``) ----------------------------------------------------
+
+    def rename_deck(self, deck_id: int, title: str) -> dict[str, Any]:
+        self.deck(deck_id)
+        if not title.strip():
+            raise FileError(422, "a deck needs a title")
+        self.store.rename_deck(deck_id, title.strip()[:300])
+        return self.get_deck(deck_id)
+
+    def delete_deck(self, deck_id: int) -> None:
+        self.manage.delete_deck(self.deck(deck_id))
+
+    def update_slide(self, deck_id: int, n: int, patch: dict[str, Any]) -> dict[str, Any]:
+        """A slide's title, body, notes or html. A folder deck's slide changes its file."""
+        self.manage.update(self.deck(deck_id, n), n, patch)
         return self.slide_info(self.deck(deck_id), n)
+
+    def insert_slide(self, deck_id: int, at: int | None, fields: dict[str, Any]) -> dict[str, Any]:
+        n = self._restructure(deck_id, lambda deck: self.manage.insert(deck, at, fields))
+        return self.slide_info(self.deck(deck_id), n)
+
+    def duplicate_slide(self, deck_id: int, n: int) -> dict[str, Any]:
+        like = self.deck(deck_id, n).slide(n)
+        new = self._restructure(deck_id, lambda deck: self.manage.insert(deck, n + 1, {}, like))
+        return self.slide_info(self.deck(deck_id), new)
+
+    def move_slide(self, deck_id: int, n: int, to: int) -> dict[str, Any]:
+        self.deck(deck_id, n)
+        self._restructure(deck_id, lambda deck: self.manage.move(deck, n, to))
+        return self.get_deck(deck_id)
+
+    def delete_slide(self, deck_id: int, n: int) -> dict[str, Any]:
+        self.deck(deck_id, n)
+        self._restructure(deck_id, lambda deck: self.manage.delete(deck, n))
+        return self.get_deck(deck_id)
+
+    def _restructure(self, deck_id: int, change: Callable[[Deck], Any]) -> Any:
+        """Run ``change`` and move each slide's chat thread to the slide's new number."""
+        before = self.deck(deck_id)
+        refs = {before.slide_ref(s): s.n for s in before.slides}
+        result = change(before)
+        after = self.deck(deck_id)
+        now = {after.slide_ref(s): s.n for s in after.slides}
+        self.store.remap_slides(deck_id, {n: now.get(ref) for ref, n in refs.items()})
+        return result
 
     def read_slide(self, path: str) -> dict[str, Any]:
         """A slide file's content, metadata and DNA trace (a folder deck's slide)."""

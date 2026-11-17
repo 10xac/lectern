@@ -10,10 +10,11 @@ export type PanelTab = 'ask' | 'deck' | 'dna';
 export function useCurrentSlide(count: number) {
   const [params, setParams] = useSearchParams();
   const current = Math.min(Math.max(Number(params.get('slide')) || 1, 1), Math.max(count, 1));
+  // `total` overrides the slide count for a deck that just changed (e.g. go to a slide just added).
   const go = useCallback(
-    (n: number) => setParams((p) => {
+    (n: number, total = count) => setParams((p) => {
       const next = new URLSearchParams(p);
-      next.set('slide', String(Math.min(Math.max(n, 1), Math.max(count, 1))));
+      next.set('slide', String(Math.min(Math.max(n, 1), Math.max(total, 1))));
       return next;
     }, { replace: true }),
     [count, setParams],
